@@ -105,10 +105,21 @@ def fetch_sentiment_score(ticker: str) -> float:
         logger.error(f"Error fetching sentiment: {e}")
         return 0.0
         
-def get_all_data(ticker: str) -> Tuple[pd.DataFrame, float, dict]:
-    """Convenience func to fetch all current data state"""
-    df = fetch_market_data(ticker, period=f"{settings.HISTORY_DAYS}d", interval=settings.TIMEFRAME)
+def fetch_multitimeframe_data(ticker: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """
+    Fetches OHLCV data at three timeframes: 5m (primary), 1d, and 1h (4H proxy).
+    yfinance does not offer a native 4H interval; 1h over 60 days is used instead.
+    Returns (df_5m, df_1d, df_htf) — any frame may be an empty DataFrame on error.
+    """
+    df_5m = fetch_market_data(ticker, period=f"{settings.HISTORY_DAYS}d", interval=settings.TIMEFRAME)
+    df_1d = fetch_market_data(ticker, period=settings.MTF_1D_PERIOD, interval="1d")
+    df_htf = fetch_market_data(ticker, period=settings.MTF_HTF_PERIOD, interval="1h")
+    return df_5m, df_1d, df_htf
+
+
+def get_all_data(ticker: str) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, float, dict]:
+    """Convenience func to fetch all current data state across timeframes"""
+    df_5m, df_1d, df_htf = fetch_multitimeframe_data(ticker)
     sentiment = fetch_sentiment_score(ticker)
     fundamentals = fetch_fundamentals(ticker)
-    
-    return df, sentiment, fundamentals
+    return df_5m, df_1d, df_htf, sentiment, fundamentals

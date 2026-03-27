@@ -20,5 +20,15 @@ class Settings(BaseModel):
     
     # Model configuration
     TARGET_COLUMN: str = "Target"
-    
+
+    # Signal Engine Thresholds
+    ACCURACY_GATE_THRESHOLD: float = 0.53
+    ADJUSTED_CONFIDENCE_THRESHOLD: float = 0.40
+    BUY_CONFIRMATION_REQUIRED: int = 5
+    HOLD_CONFIRMATION_REQUIRED: int = 4
+    SWING_LOW_ORDER: int = 5
+    DIVERGENCE_LOOKBACK: int = 30
+    MTF_1D_PERIOD: str = "1y"
+    MTF_HTF_PERIOD: str = "60d"
+
 settings = Settings()

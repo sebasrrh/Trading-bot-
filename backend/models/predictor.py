@@ -57,6 +57,25 @@ def train_model(df: pd.DataFrame) -> HistGradientBoostingClassifier:
     _last_accuracy = accuracy
     return model
 
+def get_raw_prediction(df: pd.DataFrame) -> tuple:
+    """
+    Returns (prob_up, walk_forward_accuracy) without thresholding into BUY/SELL/HOLD.
+    Used by the signal engine to apply its own gating logic.
+    Returns (0.5, 0.0) if model is not yet trained or data is empty.
+    """
+    global _model, _last_accuracy
+
+    if _model is None or df.empty:
+        return 0.5, 0.0
+
+    latest_row = df.iloc[-1:]
+    features_to_drop = [settings.TARGET_COLUMN, 'Future_Close', 'Open', 'High', 'Low', 'Close']
+    X_latest = latest_row.drop(columns=[col for col in features_to_drop if col in latest_row.columns])
+    X_latest = X_latest[_model.feature_names_in_]
+    prob_up = float(_model.predict_proba(X_latest)[0][1])
+    return prob_up, float(_last_accuracy)
+
+
 def predict_next_signal(df: pd.DataFrame):
     """
     Predicts the signal for the very last row (current active interval).

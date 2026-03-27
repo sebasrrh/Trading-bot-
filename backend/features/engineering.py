@@ -57,6 +57,16 @@ def add_technical_indicators(df: pd.DataFrame) -> pd.DataFrame:
     df.dropna(inplace=True)
     return df
 
+def prepare_features_htf(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Adds technical indicators to a higher-timeframe DataFrame (1D or 1H) for trend detection.
+    Does NOT add Future_Close, Target, or Sentiment — this data is used for alignment checks only.
+    """
+    if df.empty:
+        return df
+    return add_technical_indicators(df)
+
+
 def prepare_features(df: pd.DataFrame, sentiment_score: float) -> pd.DataFrame:
     """
     Creates the final feature set for training and prediction.
