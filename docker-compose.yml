@@ -6,6 +6,8 @@ services:
     restart: unless-stopped
     networks:
       - internal-web
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
 
   frontend:
     image: madpods/sebastian-frontend:latest
@@ -20,6 +22,22 @@ services:
       - STREAMLIT_SERVER_HEADLESS=true
       - STREAMLIT_SERVER_ENABLE_CORS=false
       - STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_POLL_INTERVAL=300
+      - WATCHTOWER_CLEANUP=true
+      - DOCKER_API_VERSION=1.44
+      - WATCHTOWER_LABEL_ENABLE=true
+    networks:
+      - internal-web
 
 networks:
   internal-web:
