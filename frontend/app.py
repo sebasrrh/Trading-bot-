@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -22,13 +23,15 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000")
+
 @st.cache_data(ttl=20)
 def fetch_analysis(ticker=None):
     try:
         if ticker:
-            url = f"http://localhost:8000/api/analyze?ticker={ticker}"
+            url = f"{BACKEND_URL}/api/analyze?ticker={ticker}"
         else:
-            url = "http://localhost:8000/api/state"
+            url = f"{BACKEND_URL}/api/state"
             
         response = requests.get(url, timeout=25)
         if response.status_code == 200:

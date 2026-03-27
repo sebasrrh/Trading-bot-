@@ -1,0 +1,26 @@
+services:
+  backend:
+    image: madpods/sebastian-backend:latest
+    environment:
+      - NEWS_API_KEY=${NEWS_API_KEY:-}
+    restart: unless-stopped
+    networks:
+      - internal-web
+
+  frontend:
+    image: madpods/sebastian-frontend:latest
+    ports:
+      - "8501:8501"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - internal-web
+    environment:
+      - STREAMLIT_SERVER_HEADLESS=true
+      - STREAMLIT_SERVER_ENABLE_CORS=false
+      - STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false
+
+networks:
+  internal-web:
+    external: true
