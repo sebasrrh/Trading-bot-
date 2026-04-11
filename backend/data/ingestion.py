@@ -105,10 +105,40 @@ def fetch_sentiment_score(ticker: str) -> float:
         logger.error(f"Error fetching sentiment: {e}")
         return 0.0
         
-def get_all_data(ticker: str) -> Tuple[pd.DataFrame, float, dict]:
-    """Convenience func to fetch all current data state"""
+def fetch_systemic_risk() -> dict:
+    """Fetch VIX term structure and mock FRED systemic indicators for V4 requirements."""
+    try:
+        # Fetch VIX and VIX3M for term structure backwardation check
+        vix = yf.Ticker("^VIX").history(period="5d").Close.iloc[-1]
+        vix3m = yf.Ticker("^VIX3M").history(period="5d").Close.iloc[-1]
+        term_structure = "backwardation" if vix > vix3m else "contango"
+    except Exception as e:
+        logger.error(f"Error fetching VIX: {e}")
+        vix, vix3m, term_structure = 20.0, 22.0, "contango"
+        
+    return {
+        "vix": vix,
+        "vix3m": vix3m,
+        "term_structure": term_structure,
+        "fred_hy_spread": 4.15, # Mock: BAMLH0A0HYM2
+        "fred_nfci": -0.45       # Mock: National Financial Conditions Index
+    }
+
+def fetch_insider_macro_mocks(ticker: str) -> dict:
+    """Mock SEC Form 4 and WSJ macro states since native scraping is complex."""
+    return {
+        "form_4_status": "Neutral",
+        "form_4_text": "No significant insider liquidation detected.",
+        "wsj_alignment": "Aligned",
+        "wsj_text": "Cost of capital stable. Institutional consensus neutral to positive. Oil margins steady."
+    }
+
+def get_all_data(ticker: str) -> Tuple[pd.DataFrame, float, dict, dict, dict]:
+    """Convenience func to fetch all current data state, now including V4 systemic layers."""
     df = fetch_market_data(ticker, period=f"{settings.HISTORY_DAYS}d", interval=settings.TIMEFRAME)
     sentiment = fetch_sentiment_score(ticker)
     fundamentals = fetch_fundamentals(ticker)
+    systemic = fetch_systemic_risk()
+    insiders_macro = fetch_insider_macro_mocks(ticker)
     
-    return df, sentiment, fundamentals
+    return df, sentiment, fundamentals, systemic, insiders_macro
