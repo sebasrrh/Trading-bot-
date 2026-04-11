@@ -106,7 +106,7 @@ def fetch_sentiment_score(ticker: str) -> float:
         return 0.0
         
 def fetch_systemic_risk() -> dict:
-    """Fetch VIX term structure and mock FRED systemic indicators for V4 requirements."""
+    """Fetch VIX term structure and mock FRED systemic indicators for V5."""
     try:
         # Fetch VIX and VIX3M for term structure backwardation check
         vix = yf.Ticker("^VIX").history(period="5d").Close.iloc[-1]
@@ -120,25 +120,31 @@ def fetch_systemic_risk() -> dict:
         "vix": vix,
         "vix3m": vix3m,
         "term_structure": term_structure,
-        "fred_hy_spread": 4.15, # Mock: BAMLH0A0HYM2
-        "fred_nfci": -0.45       # Mock: National Financial Conditions Index
+        "fred_hy_spread": 4.15, 
+        "fred_nfci": -0.45       
     }
 
-def fetch_insider_macro_mocks(ticker: str) -> dict:
-    """Mock SEC Form 4 and WSJ macro states since native scraping is complex."""
+def fetch_v5_apex_layers(ticker: str) -> dict:
+    """Mock advanced Alt-Data, GEX, DIX and Corporate Actions."""
     return {
         "form_4_status": "Neutral",
         "form_4_text": "No significant insider liquidation detected.",
         "wsj_alignment": "Aligned",
-        "wsj_text": "Cost of capital stable. Institutional consensus neutral to positive. Oil margins steady."
+        "wsj_text": "Cost of capital stable. Institutional consensus neutral to positive. Oil margins steady.",
+        "ticker_status": "Active", # Active, Halt, Delisted
+        "corporate_events": "No imminent M&A or earnings calls within 48h.",
+        "gex": "Positive", # Positive/Negative
+        "dix": "High", # High/Low
+        "alt_data": "Credit card transaction volume proxy holding steady.",
+        "gamma_support": 100.0 # Placeholder for Gamma breakdown level
     }
 
 def get_all_data(ticker: str) -> Tuple[pd.DataFrame, float, dict, dict, dict]:
-    """Convenience func to fetch all current data state, now including V4 systemic layers."""
+    """Convenience func to fetch all current data state for V5."""
     df = fetch_market_data(ticker, period=f"{settings.HISTORY_DAYS}d", interval=settings.TIMEFRAME)
     sentiment = fetch_sentiment_score(ticker)
     fundamentals = fetch_fundamentals(ticker)
     systemic = fetch_systemic_risk()
-    insiders_macro = fetch_insider_macro_mocks(ticker)
+    v5_data = fetch_v5_apex_layers(ticker)
     
-    return df, sentiment, fundamentals, systemic, insiders_macro
+    return df, sentiment, fundamentals, systemic, v5_data

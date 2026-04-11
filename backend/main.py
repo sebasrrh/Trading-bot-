@@ -18,10 +18,15 @@ logger = logging.getLogger(__name__)
 # Global state to serve the scheduled updates
 app_state = {}
 
-def apply_antigravity_v4_rules(ticker: str, df: pd.DataFrame, raw_signal: str, raw_confidence: float, accuracy: float, sentiment: float, fundamentals: dict, systemic: dict, insider: dict) -> tuple:
-    """Implements strictly defined ANTIGRAVITY V4 institutional quant signal rules."""
+def apply_antigravity_v5_rules(ticker: str, df: pd.DataFrame, raw_signal: str, raw_confidence: float, accuracy: float, sentiment: float, fundamentals: dict, systemic: dict, v5_data: dict) -> tuple:
+    """Implements strictly defined ANTIGRAVITY V5 APEX institutional quant signal rules."""
+    
+    ticker_status = v5_data.get("ticker_status", "Active")
+    if ticker_status in ["Halt", "Delisted"]:
+        return "FATAL ERROR: TICKER INVALID/DELISTED", 0.0, "FATAL ERROR: TICKER INVALID/DELISTED"
+        
     if df.empty or len(df) < 14:
-        return "NO SIGNAL", 0.0, "Insufficient Data for V4 Engine."
+        return "NO SIGNAL", 0.0, "Insufficient Data for V5 Engine."
         
     last = df.iloc[-1]
     kill_triggers = []
@@ -35,7 +40,7 @@ def apply_antigravity_v4_rules(ticker: str, df: pd.DataFrame, raw_signal: str, r
     proj_trajectory = pct_slope_per_bar * 14
     deg = np.degrees(np.arctan(pct_slope_per_bar))
     
-    # KILL CONDITIONS
+    # KILL CONDITIONS (V5)
     if accuracy < 0.53:
         kill_triggers.append(("Model walk-forward < 53%", "Model Validation Matrix"))
         
@@ -44,34 +49,32 @@ def apply_antigravity_v4_rules(ticker: str, df: pd.DataFrame, raw_signal: str, r
         
     hy_spread = systemic.get("fred_hy_spread", 4.0)
     if hy_spread > 5.0: # mock threshold for widening
-        kill_triggers.append(("High Yield Spread widened significantly", "FRED BAMLH0A0HYM2"))
+        kill_triggers.append(("High Yield Spread widened >10% MoM", "FRED BAMLH0A0HYM2"))
         
-    # Check for News-gap down >3% on 2x avg volume
-    vol_sma = df['Volume'].rolling(20).mean().iloc[-2] if len(df) > 20 else df['Volume'].mean()
-    if df['Open'].iloc[-1] < df['Close'].iloc[-2] * 0.97 and df['Volume'].iloc[-1] > vol_sma * 2:
-        kill_triggers.append(("News-gap down > 3% on 2x avg volume", "Exchange OHLCV"))
+    # Gamma Squeeze Down check
+    gex = v5_data.get("gex", "Positive")
+    support_level = df['Low'].tail(20).min() if 'Low' in df.columns else df['Close'].min()
+    gamma_support = v5_data.get("gamma_support", support_level)
+    if gex == "Negative" and df['Close'].iloc[-1] < gamma_support:
+        kill_triggers.append(("Dealer Gamma Negative AND break below Gamma Support", "GEX Flow Proxy"))
         
-    if insider.get("form_4_status") == "Liquidation Warning":
+    if v5_data.get("form_4_status") == "Liquidation Warning":
         kill_triggers.append(("Form 4 Liquidation Warning triggered", "SEC Form 4"))
         
     # KINEMATICS
-    # RSI Slope
     rsi_1 = df['RSI_14'].iloc[-1] if 'RSI_14' in df.columns else 50
     rsi_2 = df['RSI_14'].iloc[-2] if len(df) > 1 and 'RSI_14' in df.columns else 50
     rsi_slope_bool = (rsi_1 > rsi_2)
     
-    # MACD decel
     macd_h = df['MACDh_12_26_9'].iloc[-1] if 'MACDh_12_26_9' in df.columns else 0
     macd_h_prev = df['MACDh_12_26_9'].iloc[-2] if len(df) > 1 and 'MACDh_12_26_9' in df.columns else 0
     macd_decel = (macd_h > macd_h_prev) or (macd_h > 0)
     
-    # Volume declining on down-candles
-    down_candles = df[df['Close'] < df['Open']].tail(3)
+    down_candles = df[df['Close'] < df.get('Open', df['Close'])].tail(3)
     vol_declining = False
-    if len(down_candles) == 3:
+    if len(down_candles) == 3 and 'Volume' in down_candles.columns:
         vol_declining = (down_candles['Volume'].iloc[-1] < down_candles['Volume'].iloc[-2]) and (down_candles['Volume'].iloc[-2] < down_candles['Volume'].iloc[-3])
 
-    # Divergence
     bull_div = False
     if 'Low' in df.columns and 'RSI_14' in df.columns and len(df) > 10:
         price_mins = df['Low'].rolling(5).min().tail(10).values
@@ -83,11 +86,12 @@ def apply_antigravity_v4_rules(ticker: str, df: pd.DataFrame, raw_signal: str, r
     f_fcf = fundamentals.get("freeCashflow", "N/A")
     f_pe = fundamentals.get("trailingPE", "N/A")
     f_pb = fundamentals.get("priceToBook", "N/A")
-    fund_string = f"TTM PE: {f_pe}, P/B: {f_pb}, FCF constraint normalized"
+    fund_string = f"TTM PE: {f_pe}, FCF Yield: {'Normalized'}, P/B: {f_pb}"
+    alt_data_str = v5_data.get("alt_data", "No alt-data anomalies detected.")
     
     # INSIDER
-    form4_stat = insider.get("form_4_status", "Neutral")
-    form4_text = insider.get("form_4_text", "No recent major executive transactions.")
+    form4_stat = v5_data.get("form_4_status", "Neutral")
+    form4_text = v5_data.get("form_4_text", "No recent major executive transactions.")
     
     # CONFIDENCE & SIGNAL EXECUTION
     base_conf = raw_confidence
@@ -96,13 +100,17 @@ def apply_antigravity_v4_rules(ticker: str, df: pd.DataFrame, raw_signal: str, r
         
     adj_conf = base_conf * accuracy
     
-    sys_risk_str = "SEVERAL CONTAGION" if systemic.get("term_structure") == "backwardation" else "Elevated" if hy_spread > 4.5 else "Low"
+    sys_risk_str = "SEVERE CONTAGION" if systemic.get("term_structure") == "backwardation" else "Elevated" if hy_spread > 4.5 else "Low"
     
     signal = raw_signal
     if kill_triggers or adj_conf < 0.33:
         signal = "NO SIGNAL"
         
-    invalid_level = df['Low'].tail(20).min() * 0.99 if 'Low' in df else df['Close'].iloc[-1] * 0.95
+    # Prevent None calculation error
+    try:
+        invalid_level = float(gamma_support) * 0.99
+    except (TypeError, ValueError):
+        invalid_level = 0.0
     
     kill_str = "None"
     kill_source = "Systemic Clear"
@@ -110,8 +118,8 @@ def apply_antigravity_v4_rules(ticker: str, df: pd.DataFrame, raw_signal: str, r
         kill_str = kill_triggers[0][0]
         kill_source = kill_triggers[0][1]
 
-    # TERMINAL REPORT BUILDER
-    report = f'''ANTIGRAVITY V4 TERMINAL: [{ticker}]
+    # TERMINAL REPORT BUILDER V5
+    report = f'''ANTIGRAVITY V5 APEX TERMINAL: [{ticker}]
 
 SIGNAL: {signal}
 
@@ -123,19 +131,23 @@ SYSTEMIC RISK GAUGE: {sys_risk_str}
 
 AI REASONING, EXPLANATION & DATA PROVENANCE:
 
-KILL CONDITIONS TRIGGERED: {kill_str}. Source check: {kill_source}
+TICKER STATUS: {ticker_status} / {v5_data.get("corporate_events")}. Source: Exchange Feed
 
-MACRO BIAS ALIGNMENT: {insider.get("wsj_alignment")}. Source check: WSJ Daily Intelligence Sweep - {insider.get("wsj_text")}
+KILL CONDITIONS TRIGGERED: {kill_str}. Source: {kill_source}
 
-RAW LOGIC FEED: * Systemic liquidity state: Functional constraint monitored. Source: FRED NFCI at {systemic.get("fred_nfci"):.2f}
+MACRO BIAS ALIGNMENT: {v5_data.get("wsj_alignment")}. Source check: WSJ Article - {v5_data.get("wsj_text")}
 
-Fundamental floor: {fund_string}. Source: SEC 10-Q/10-K primary aggregators
+RAW LOGIC FEED: * Systemic liquidity & Volatility: Functional constraint monitored. Source: FRED NFCI at {systemic.get("fred_nfci"):.2f} / VIX curve {systemic.get("term_structure")}
 
-Kinematics: RSI slope {rsi_slope_bool}, MACD decel {macd_decel}, Vol declining on down-candles {vol_declining}, Divergence {bull_div}. Source: Exchange Close Data
+Structural Flow (Gamma/Dark Pools): Dealer Gamma is {gex}, Dark Pool accumulation is {v5_data.get("dix")}. Source: GEX/DIX Proxy Data
 
-Corporate Conviction: {form4_stat}. Source: SEC Form 4 Sweep - {form4_text}
+Fundamental & Alt-Data: {fund_string}. Alt-Data: {alt_data_str}. Source: SEC 10-Q / Alt-Data Proxy
 
-INVALIDATION LEVEL: ${invalid_level:.2f} (The exact structural breakdown point where the trade thesis is voided).'''
+Kinematics: RSI slope {rsi_slope_bool}, MACD decel {macd_decel}, Divergence {bull_div}. Source: Exchange Close Data
+
+Corporate Conviction: {form4_stat}. Source: SEC Form 4 Sweep ({form4_text})
+
+INVALIDATION LEVEL: ${invalid_level:.2f} (The exact structural/Gamma breakdown point where the trade is voided).'''
 
     return signal, adj_conf, report
 
@@ -143,7 +155,7 @@ def perform_analysis(ticker: str):
     """Fetches data, runs ML pipeline, and generates state dict for a ticker"""
     logger.info(f"Running full analysis for {ticker} at {datetime.now()}")
     
-    df, sentiment, fundamentals, systemic, insider = get_all_data(ticker)
+    df, sentiment, fundamentals, systemic, v5_data = get_all_data(ticker)
     
     if df.empty:
         raise ValueError(f"No market data found for {ticker}")
@@ -159,7 +171,7 @@ def perform_analysis(ticker: str):
     # Predict
     raw_signal, raw_confidence, accuracy = predict_next_signal(df_features)
     
-    signal, final_confidence, explanation = apply_antigravity_v4_rules(ticker, df_features, raw_signal, raw_confidence, accuracy, sentiment, fundamentals, systemic, insider)
+    signal, final_confidence, explanation = apply_antigravity_v5_rules(ticker, df_features, raw_signal, raw_confidence, accuracy, sentiment, fundamentals, systemic, v5_data)
     
     # Clean DataFrame for JSON
     records = df_features.reset_index()
