@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
@@ -14,22 +15,27 @@ st.markdown("""
     .metric-card { background-color: #1e1e24; border-radius: 10px; padding: 20px; text-align: center; border: 1px solid #333; height: 100%;}
     .metric-value { font-size: 2.5rem; font-weight: bold; color: #fff; }
     .metric-label { font-size: 1rem; color: #aaa; text-transform: uppercase; }
-    .explanation-box { background-color: #1e1e24; border-left: 5px solid #2196f3; padding: 20px; margin-top: 20px; font-size: 1.2rem; border-radius: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    .explanation-box { background-color: #1e1e24; border-left: 5px solid #2196f3; padding: 20px; margin-top: 20px; font-size: 1rem; border-radius: 5px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); white-space: pre-wrap; font-family: monospace; }
     .signal-BUY { color: #00e676; font-weight: bold; }
     .signal-SELL { color: #ff5252; font-weight: bold; }
     .signal-HOLD { color: #ffea00; font-weight: bold; }
+    .signal-NO_SIGNAL { color: #ff9800; font-weight: bold; }
     .stock-title { font-size: 3rem; font-weight: bold; color: #2196f3; margin-bottom: 0; }
+    .alignment-aligned { color: #00e676; font-weight: bold; }
+    .alignment-counter { color: #ff5252; font-weight: bold; }
 </style>
 """, unsafe_allow_html=True)
+
+BACKEND_URL = os.getenv("BACKEND_URL", "http://backend:8000")
 
 @st.cache_data(ttl=20)
 def fetch_analysis(ticker=None):
     try:
         if ticker:
-            url = f"http://localhost:8000/api/analyze?ticker={ticker}"
+            url = f"{BACKEND_URL}/api/analyze?ticker={ticker}"
         else:
-            url = "http://localhost:8000/api/state"
-            
+            url = f"{BACKEND_URL}/api/state"
+
         response = requests.get(url, timeout=25)
         if response.status_code == 200:
             return response.json()
@@ -48,15 +54,15 @@ def create_advanced_chart(df, ticker):
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.03, row_heights=[0.75, 0.25])
     time_col = 'Datetime' if 'Datetime' in df.columns else 'Date'
     if time_col not in df.columns: df[time_col] = df.index
-        
+
     fig.add_trace(go.Candlestick(
-        x=df[time_col], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'], 
+        x=df[time_col], open=df['Open'], high=df['High'], low=df['Low'], close=df['Close'],
         name='Price', increasing_line_color='#00e676', decreasing_line_color='#ff5252'
     ), row=1, col=1)
-    
+
     if 'SMA_20' in df.columns: fig.add_trace(go.Scatter(x=df[time_col], y=df['SMA_20'], name='SMA 20', line=dict(color='#2196f3', width=1.5)), row=1, col=1)
     if 'SMA_50' in df.columns: fig.add_trace(go.Scatter(x=df[time_col], y=df['SMA_50'], name='SMA 50', line=dict(color='#ff9800', width=1.5)), row=1, col=1)
-    
+
     if 'MACD_12_26_9' in df.columns:
         fig.add_trace(go.Scatter(x=df[time_col], y=df['MACD_12_26_9'], name='MACD', line=dict(color='#2196f3')), row=2, col=1)
         fig.add_trace(go.Scatter(x=df[time_col], y=df['MACDs_12_26_9'], name='Signal', line=dict(color='#ff9800')), row=2, col=1)
@@ -77,7 +83,7 @@ def main():
             st.markdown("<b>Search & Analyze Custom Ticker:</b>", unsafe_allow_html=True)
             query = st.text_input("Ticker Symbol:", placeholder="e.g. MSTR, TSLA, NVDA")
             submit = st.form_submit_button("Run Full ML Pipeline")
-            
+
     if submit and query:
         with st.spinner(f"Fetching live data, building indicators, and retraining XG-Boost model for {query.upper()}..."):
             state = fetch_analysis(query.upper())
@@ -89,7 +95,7 @@ def main():
             if state: st.session_state['state'] = state
 
     state = st.session_state.get('state')
-    
+
     if not state or not state.get("latest_data"):
         st.warning("⏳ Waiting for data... Ensure FastAPI backend is running.")
         time.sleep(5)
@@ -99,27 +105,45 @@ def main():
     # Extract
     df = pd.DataFrame(state["latest_data"])
     signal = state.get("signal", "HOLD")
-    explanation = state.get("explanation", "Model analysis complete.")
+    # Sanitize signal for CSS class name (e.g. "NO SIGNAL" → "NO_SIGNAL")
+    signal_css = signal.replace(" ", "_")
+    reasoning = state.get("reasoning", state.get("explanation", "Model analysis complete."))
     ticker = state.get("ticker", "AAPL")
-    
+
     st.markdown(f'<div class="stock-title">{ticker} <span style="font-size:1.5rem; color:#aaa; font-weight:normal;">Live Analysis</span></div>', unsafe_allow_html=True)
-    
-    # ------------------ EXPLANATION BOX ----------------
+
+    # ------------------ KILL CONDITIONS ALERT ----------------
+    kill_conditions = state.get("kill_conditions", ["NONE"])
+    if kill_conditions != ["NONE"]:
+        st.warning("**Active Kill Conditions:** " + " | ".join(kill_conditions))
+
+    # ------------------ REASONING BOX ----------------
     st.markdown(f'''
     <div class="explanation-box">
-        <span style="font-size: 1.5rem; display:block; margin-bottom: 5px;">🤖 AI Reasoning & Explanation</span>
-        {explanation}
+        <span style="font-size: 1.2rem; font-weight: bold; display:block; margin-bottom: 10px; font-family: sans-serif;">📊 Quantitative Signal Engine Reasoning</span>{reasoning}
     </div>
     ''', unsafe_allow_html=True)
-    
+
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # ------------------ METRICS ----------------
+    # ------------------ METRICS ROW 1 ----------------
     c1, c2, c3, c4 = st.columns(4)
-    with c1: st.markdown(f'<div class="metric-card"><div class="metric-label">NEXT INTERVAL</div><div class="metric-value signal-{signal}">{signal}</div></div>', unsafe_allow_html=True)
-    with c2: st.markdown(f'<div class="metric-card"><div class="metric-label">MODEL CONFIDENCE</div><div class="metric-value">{state.get("confidence", 0)*100:.1f}%</div></div>', unsafe_allow_html=True)
+    with c1: st.markdown(f'<div class="metric-card"><div class="metric-label">NEXT INTERVAL</div><div class="metric-value signal-{signal_css}">{signal}</div></div>', unsafe_allow_html=True)
+    with c2: st.markdown(f'<div class="metric-card"><div class="metric-label">RAW CONFIDENCE</div><div class="metric-value">{state.get("confidence", 0)*100:.1f}%</div></div>', unsafe_allow_html=True)
     with c3: st.markdown(f'<div class="metric-card"><div class="metric-label">NEWS SENTIMENT</div><div class="metric-value">{state.get("sentiment", 0):.2f}</div></div>', unsafe_allow_html=True)
     with c4: st.markdown(f'<div class="metric-card"><div class="metric-label">WALK-FORWARD ACCURACY</div><div class="metric-value">{state.get("model_accuracy", 0)*100:.1f}%</div></div>', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # ------------------ METRICS ROW 2 (signal engine) ----------------
+    alignment = state.get("timeframe_alignment", "N/A")
+    alignment_css = "alignment-aligned" if alignment == "ALIGNED" else "alignment-counter"
+    conf_adj = state.get("confidence_adjusted", 0)
+
+    e1, e2, e3 = st.columns(3)
+    with e1: st.markdown(f'<div class="metric-card"><div class="metric-label">CONFIRMATION SCORE</div><div class="metric-value">{state.get("confirmation_score", "N/A")}</div></div>', unsafe_allow_html=True)
+    with e2: st.markdown(f'<div class="metric-card"><div class="metric-label">TIMEFRAME ALIGNMENT</div><div class="metric-value {alignment_css}">{alignment}</div></div>', unsafe_allow_html=True)
+    with e3: st.markdown(f'<div class="metric-card"><div class="metric-label">ADJUSTED CONFIDENCE</div><div class="metric-value">{conf_adj*100:.1f}%</div></div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -128,7 +152,7 @@ def main():
     with col_chart:
         fig = create_advanced_chart(df, ticker)
         st.plotly_chart(fig, use_container_width=True)
-        
+
     with col_info:
         st.subheader("📑 Fundamentals")
         f = state.get("fundamentals", {})
@@ -138,7 +162,20 @@ def main():
             st.write(f"**Yield:** {f.get('dividend_yield', 0)*100:.2f}%" if f.get('dividend_yield') else "**Yield:** N/A")
             st.write(f"**52W High:** ${f.get('52_week_high', 'N/A')}")
             st.write(f"**52W Low:** ${f.get('52_week_low', 'N/A')}")
-            
+
+        st.markdown("---")
+        st.subheader("⚠️ Signal Engine")
+        primary_risk = state.get("primary_risk", "N/A")
+        st.write(f"**Primary Risk:** {primary_risk}")
+
+        inv_level = state.get("invalidation_level")
+        if inv_level is not None:
+            st.write(f"**Invalidation Level:** ${inv_level:.2f}")
+        else:
+            st.write("**Invalidation Level:** N/A")
+
+        st.write(f"**Accuracy Gate:** {state.get('model_accuracy_gate', 'N/A')}")
+
         st.markdown("---")
         st.subheader("⚙️ Current Technicals")
         last = df.iloc[-1]
