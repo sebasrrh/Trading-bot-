@@ -57,6 +57,7 @@ docs/          The full spec — start at 00-overview.md
 | [08-paper-trading.md](docs/08-paper-trading.md) | Paper accounts, order sim, leaderboard |
 | [09-options.md](docs/09-options.md) | Black-Scholes, Greeks, chains, payoff graphs |
 | [10-roadmap.md](docs/10-roadmap.md) | Build order, phase acceptance criteria |
+| [11-deployment.md](docs/11-deployment.md) | Docker image, publish workflow, hosting the leaderboard |
 
 ## Ground rules for contributors (that's us)
 

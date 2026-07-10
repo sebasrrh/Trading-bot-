@@ -60,6 +60,8 @@ daily marks, autopilot bindings, leaderboard api + widget.
 - [ ] Overnight limit order fills correctly on reopen (reconciliation test)
 - [ ] Autopilot `sma-cross` places the same orders a backtest would (semantics test)
 - [ ] Leaderboard shows ≥ 2 real friends' accounts with sparklines
+- [ ] Docker image + publish workflow live (docs/11) and one hosted instance
+      running the shared leaderboard
 
 ## Phase 5 — Options (2 weeks)
 
