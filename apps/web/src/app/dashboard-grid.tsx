@@ -18,7 +18,7 @@ function WidgetFrame({ inst }: { inst: WidgetInstance }) {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: 'var(--bg-surface-1)', borderRadius: 'var(--radius-m)', border: '1px solid var(--border-hairline)', overflow: 'hidden' }}>
-      <div style={{ display: 'flex', alignItems: 'center', padding: '4px 8px', borderBottom: '1px solid var(--border-hairline)', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>
+      <div className="widget-drag-handle" style={{ display: 'flex', alignItems: 'center', padding: '4px 8px', borderBottom: '1px solid var(--border-hairline)', fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', cursor: 'grab' }}>
         <span>{man.name}</span>
         <div style={{ flex: 1 }} />
         <button onClick={() => setChannel(inst.id, inst.channel === null ? 'A' : inst.channel === 'A' ? 'B' : inst.channel === 'B' ? 'C' : null)}
@@ -38,11 +38,18 @@ export default function DashboardGrid({ workspace }: Props) {
   const setLayouts = useWorkspaceStore((s) => s.setLayouts);
   const instances = Object.values(workspace.widgets);
 
-  const layout = workspace.layouts.lg ?? instances.map((inst, i) => {
-    const man = widgetRegistry.get(inst.widgetId);
-    const def = man?.defaultSize ?? { w: 4, h: 6 };
-    return { i: inst.id, x: (i * def.w) % 12, y: i * 2, w: def.w, h: def.h };
-  });
+  // Stored layout plus synthesized entries for any instance the layout doesn't
+  // know about (e.g. workspaces saved before addWidget wrote layout entries).
+  const stored = workspace.layouts.lg ?? [];
+  const known = new Set(stored.map((l) => l.i));
+  const bottom = stored.reduce((m, l) => Math.max(m, l.y + l.h), 0);
+  const layout = [
+    ...stored.filter((l) => workspace.widgets[l.i]),
+    ...instances.filter((inst) => !known.has(inst.id)).map((inst, i) => {
+      const def = widgetRegistry.get(inst.widgetId)?.defaultSize ?? { w: 4, h: 6 };
+      return { i: inst.id, x: 0, y: bottom + i * def.h, w: def.w, h: def.h };
+    }),
+  ];
 
   return (
     <main style={{ flex: 1, overflow: 'auto', padding: 12, background: 'var(--bg-page)' }}>

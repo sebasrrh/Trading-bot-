@@ -9,39 +9,67 @@ const providers: ProviderAdapter[] = [
 ];
 
 export interface RoutedResponse<T> {
-  source: ProviderId;
+  /** null = every capable provider failed or returned nothing */
+  source: ProviderId | null;
   data: T;
+  /** one entry per provider that errored, for the response body + logs */
+  warnings: string[];
+}
+
+/** All capable providers threw — the caller should surface a 502, not empty data. */
+export class AllProvidersFailedError extends Error {
+  constructor(public warnings: string[]) {
+    super(`all providers failed: ${warnings.join('; ')}`);
+  }
+}
+
+async function route<T>(
+  capable: (p: ProviderAdapter) => boolean,
+  call: (p: ProviderAdapter) => Promise<T>,
+  nonEmpty: (data: T) => boolean,
+): Promise<RoutedResponse<T | null>> {
+  const warnings: string[] = [];
+  let tried = 0;
+  for (const p of providers) {
+    if (!capable(p)) continue;
+    tried++;
+    try {
+      const data = await call(p);
+      if (nonEmpty(data)) return { source: p.id, data, warnings };
+    } catch (err) {
+      const msg = `${p.id}: ${err instanceof Error ? err.message : String(err)}`;
+      console.warn(`[provider] ${msg}`);
+      warnings.push(msg);
+    }
+  }
+  // Every capable provider errored (vs. legitimately returning nothing).
+  if (tried > 0 && warnings.length === tried) throw new AllProvidersFailedError(warnings);
+  return { source: null, data: null, warnings };
 }
 
 export async function routeBars(req: BarsRequest): Promise<RoutedResponse<Bar[]>> {
-  for (const p of providers) {
-    if (!p.capabilities.has('bars-1D')) continue;
-    try {
-      const bars = await p.getBars(req);
-      if (bars.length > 0) return { source: p.id, data: bars };
-    } catch { continue; }
-  }
-  return { source: 'stooq', data: [] };
+  const r = await route(
+    (p) => p.capabilities.has('bars-1D'),
+    (p) => p.getBars(req),
+    (bars) => bars.length > 0,
+  );
+  return { ...r, data: r.data ?? [] };
 }
 
 export async function routeQuotes(symbols: string[]): Promise<RoutedResponse<Quote[]>> {
-  for (const p of providers) {
-    if (!p.capabilities.has('quote')) continue;
-    try {
-      const quotes = await p.getQuotes(symbols);
-      if (quotes.length > 0) return { source: p.id, data: quotes };
-    } catch { continue; }
-  }
-  return { source: 'stooq', data: [] };
+  const r = await route(
+    (p) => p.capabilities.has('quote'),
+    (p) => p.getQuotes(symbols),
+    (quotes) => quotes.length > 0,
+  );
+  return { ...r, data: r.data ?? [] };
 }
 
 export async function routeSearch(q: string): Promise<SymbolInfo[]> {
-  for (const p of providers) {
-    if (!p.search) continue;
-    try {
-      const results = await p.search(q);
-      if (results.length > 0) return results;
-    } catch { continue; }
-  }
-  return [];
+  const r = await route(
+    (p) => p.capabilities.has('search') && !!p.search,
+    (p) => p.search!(q),
+    (results) => results.length > 0,
+  );
+  return r.data ?? [];
 }

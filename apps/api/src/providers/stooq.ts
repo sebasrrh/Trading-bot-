@@ -11,7 +11,7 @@ function abortAfterMs(ms: number): AbortSignal {
 const STOOQ_URL = 'https://stooq.com/q/d/l/';
 
 function parseStooqDate(dateStr: string): number {
-  const parts = dateStr.split(/[-\/]/);
+  const parts = dateStr.split(/[-/]/);
   return Date.UTC(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
 }
 
@@ -21,10 +21,13 @@ export const stooqAdapter: ProviderAdapter = {
 
   async getBars(req: BarsRequest): Promise<Bar[]> {
     const interval = req.timeframe === '1W' ? 'w' : 'd';
-    const url = `${STOOQ_URL}?s=${req.symbol.toLowerCase()}&i=${interval}`;
+    // Stooq needs the market suffix for US tickers: spy.us, not spy.
+    const sym = req.symbol.toLowerCase();
+    const stooqSym = sym.includes('.') ? sym : `${sym}.us`;
+    const url = `${STOOQ_URL}?s=${stooqSym}&i=${interval}`;
 
     const res = await fetch(url, { signal: abortAfterMs(8_000) });
-    if (!res.ok) return [];
+    if (!res.ok) throw new Error(`stooq HTTP ${res.status} for ${stooqSym}`);
     const csv = await res.text();
     const lines = csv.trim().split('\n').slice(1);
     const bars: Bar[] = [];

@@ -1,15 +1,17 @@
 import { useState, useEffect } from 'react';
 import { QueryClientProvider } from '@tanstack/react-query';
+import { LayoutDashboard, FlaskConical, TrendingUp, Wallet } from 'lucide-react';
 import { queryClient } from '../lib/query-client';
 import { useContextStore, useWorkspaceStore } from '../state';
+import { widgetRegistry } from '../widgets/registry';
 import DashboardGrid from './dashboard-grid';
 import CommandPalette from '../components/command-palette';
 
 const navItems = [
-  { id: 'dashboard', icon: '\uD83D\uDCCA', label: 'Dashboard' },
-  { id: 'lab', icon: '\uD83E\uDDEA', label: 'Backtest Lab' },
-  { id: 'sim', icon: '\uD83D\uDCC8', label: 'Sim Lab' },
-  { id: 'paper', icon: '\uD83D\uDCB0', label: 'Paper' },
+  { id: 'dashboard', Icon: LayoutDashboard, label: 'Dashboard' },
+  { id: 'lab', Icon: FlaskConical, label: 'Backtest Lab' },
+  { id: 'sim', Icon: TrendingUp, label: 'Sim Lab' },
+  { id: 'paper', Icon: Wallet, label: 'Paper' },
 ];
 
 function Content() {
@@ -54,7 +56,7 @@ export default function App() {
             {workspaces.map((w, i) => <option key={i} value={i}>{w.name}</option>)}
           </select>
 
-          <button onClick={() => addWidget('candles')}
+          <button onClick={() => setPaletteOpen(true)}
             style={{ border: '1px solid var(--border-hairline)', background: 'var(--bg-surface-2)', color: 'var(--text-secondary)', borderRadius: 'var(--radius-s)', padding: '2px 10px', fontSize: 12, cursor: 'pointer' }}>
             + Widget
           </button>
@@ -73,8 +75,8 @@ export default function App() {
           <nav style={{ width: 56, borderRight: '1px solid var(--border-hairline)', background: 'var(--bg-surface-1)', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 8, gap: 4 }}>
             {navItems.map(item => (
               <button key={item.id} title={item.label}
-                style={{ width: 40, height: 40, border: 'none', background: 'transparent', color: 'var(--text-secondary)', fontSize: 20, cursor: 'pointer', borderRadius: 'var(--radius-s)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {item.icon}
+                style={{ width: 40, height: 40, border: 'none', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', borderRadius: 'var(--radius-s)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <item.Icon size={20} strokeWidth={1.75} />
               </button>
             ))}
           </nav>
@@ -82,7 +84,7 @@ export default function App() {
         </div>
       </div>
 
-      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} onAddWidget={(wid) => addWidget(wid)} />}
+      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} onAddWidget={(wid) => addWidget(wid, {}, widgetRegistry.get(wid)?.defaultSize)} />}
     </QueryClientProvider>
   );
 }

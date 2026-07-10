@@ -8,8 +8,8 @@
     "build": "pnpm -r build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint . --ext .ts,.tsx",
-    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{ts,tsx,json,css,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,json,css,md}\"",
     "typecheck": "pnpm -r typecheck",
@@ -17,12 +17,14 @@
     "api:nuke-cache": "rm -rf apps/api/data"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.0.0",
     "concurrently": "^9.0.0",
     "eslint": "^9.0.0",
     "eslint-config-prettier": "^9.1.0",
     "prettier": "^3.4.0",
     "typescript": "^5.7.0",
+    "typescript-eslint": "^8.63.0",
     "vitest": "^2.1.0"
   },
   "engines": {

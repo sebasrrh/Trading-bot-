@@ -3,19 +3,17 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
     },
-    "./tokens.css": {
-      "import": "./dist/tokens.css"
-    }
+    "./tokens.css": "./src/tokens.css"
   },
   "scripts": {
-    "build": "tsc && copy /Y src\\tokens.css dist\\tokens.css",
+    "build": "tsc",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist",
     "test": "vitest run"

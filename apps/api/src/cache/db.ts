@@ -21,7 +21,7 @@ async function getDb(): Promise<Database> {
       const SQL = await initSqlJs();
 
       let existingBuffer: Buffer | undefined;
-      try { existingBuffer = readFileSync(DB_PATH); } catch { }
+      try { existingBuffer = readFileSync(DB_PATH); } catch { /* no cache file yet */ }
 
       db = new SQL.Database(existingBuffer);
       db.run('PRAGMA journal_mode=WAL');

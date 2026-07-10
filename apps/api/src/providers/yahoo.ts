@@ -9,6 +9,8 @@ function abortAfterMs(ms: number): AbortSignal {
 }
 
 const YAHOO_CHART = 'https://query1.finance.yahoo.com/v8/finance/chart';
+// Yahoo rejects default fetch user agents with 403/429.
+const UA = { 'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36' };
 
 export const yahooAdapter: ProviderAdapter = {
   id: 'yahoo' as ProviderId,
@@ -17,8 +19,8 @@ export const yahooAdapter: ProviderAdapter = {
   async getBars(req: BarsRequest): Promise<Bar[]> {
     const range = Math.ceil((req.to - req.from) / 86_400_000) > 365 ? 'max' : '1y';
     const url = `${YAHOO_CHART}/${req.symbol}?interval=1d&range=${range}`;
-    const res = await fetch(url, { signal: abortAfterMs(8_000) });
-    if (!res.ok) return [];
+    const res = await fetch(url, { signal: abortAfterMs(8_000), headers: UA });
+    if (!res.ok) throw new Error(`yahoo HTTP ${res.status} for ${req.symbol}`);
     const json = await res.json() as any;
     const result = json?.chart?.result?.[0];
     if (!result) return [];
@@ -37,9 +39,10 @@ export const yahooAdapter: ProviderAdapter = {
       const c = q.close[i]!;
       const v = q.volume[i]!;
       if (o == null || h == null || l == null || c == null || v == null) continue;
-      const adj = ac?.[i] ?? 1;
+      // Split/dividend adjustment: scale every field by adjclose/close.
+      const f = ac?.[i] != null && c !== 0 ? ac[i]! / c : 1;
       bars.push(BarSchema.parse({
-        t, o: o * adj / (c / o), h: h * adj / (c / o), l: l * adj / (c / o), c: adj, v,
+        t, o: o * f, h: h * f, l: l * f, c: c * f, v,
       }));
     }
     bars.sort((a, b) => a.t - b.t);
@@ -50,7 +53,7 @@ export const yahooAdapter: ProviderAdapter = {
     const results = await Promise.all(symbols.map(async (symbol) => {
       try {
         const url = `${YAHOO_CHART}/${symbol}?interval=1d&range=5d`;
-        const res = await fetch(url, { signal: abortAfterMs(5_000) });
+        const res = await fetch(url, { signal: abortAfterMs(5_000), headers: UA });
         if (!res.ok) return null;
         const json = await res.json() as any;
         const result = json?.chart?.result?.[0];
@@ -73,7 +76,7 @@ export const yahooAdapter: ProviderAdapter = {
     if (q.length < 1) return [];
     const url = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}`;
     try {
-      const res = await fetch(url, { signal: abortAfterMs(5_000) });
+      const res = await fetch(url, { signal: abortAfterMs(5_000), headers: UA });
       if (!res.ok) return [];
       const json = await res.json() as any;
       return (json.quotes ?? []).map((item: any) => ({
