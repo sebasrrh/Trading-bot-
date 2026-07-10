@@ -1,25 +1,24 @@
 # macOS
 .DS_Store
 
-# Archives
-Archive.zip
-*.zip
-*.tar.gz
-
-# Node / JS
+# Node / TS
 node_modules/
 dist/
 build/
-.env
+*.tsbuildinfo
+.turbo/
+coverage/
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-venv/
-env/
-.venv/
+# Env & secrets (keys live only in apps/api/.env — see docs/04)
 .env
+.env.local
+
+# Data caches
+apps/api/data/
+
+# Test artifacts
+playwright-report/
+test-results/
 
 # Claude
 .claude
