@@ -1,0 +1,12 @@
+  // When timestamps match, last write wins (b overwrites a)
+  if (a.t[i]! < b.t[j]!) {
+    merged.push({ t: a.t[i]!, o: a.o[i]!, h: a.h[i]!, l: a.l[i]!, c: a.c[i]!, v: a.v[i]! });
+    i++;
+  } else if (a.t[i]! > b.t[j]!) {
+    merged.push({ t: b.t[j]!, o: b.o[j]!, h: b.h[j]!, l: b.l[j]!, c: b.c[j]!, v: b.v[j]! });
+    j++;
+  } else {
+    // b wins on conflict (last write)
+    merged.push({ t: b.t[j]!, o: b.o[j]!, h: b.h[j]!, l: b.l[j]!, c: b.c[j]!, v: b.v[j]! });
+    i++; j++;
+  }

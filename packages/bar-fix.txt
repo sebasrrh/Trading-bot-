@@ -1,0 +1,15 @@
+  const n = bars.length;
+  const t = new Float64Array(n);
+  const o = new Float64Array(n);
+  const h = new Float64Array(n);
+  const l = new Float64Array(n);
+  const c = new Float64Array(n);
+  const v = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    const bar = bars[i]!;
+    t[i] = bar.t;
+    o[i] = bar.o;
+    h[i] = bar.h;
+    l[i] = bar.l;
+    c[i] = bar.c;
+    v[i] = bar.v;

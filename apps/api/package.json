@@ -1,0 +1,27 @@
+{
+  "name": "@tradeboard/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@tradeboard/core": "workspace:*",
+    "@tradeboard/data": "workspace:*",
+    "hono": "^4.6.0",
+    "sql.js": "^1.11.0",
+    "@hono/node-server": "^1.13.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  }
+}
