@@ -21,6 +21,25 @@ app.get('/api/health', (c) => {
   });
 });
 
+// A bar isn't "closed" (and thus isn't final/cacheable as complete) until a
+// full timeframe period has elapsed. Comparing cache coverage against a raw
+// `to=Date.now()` — as this used to — meant `meta.last_t` (the open time of
+// the most recent *closed* bar, e.g. yesterday 00:00 UTC for daily) could
+// never be >= "right now", so the cache never hit and every request re-fetched
+// from the provider. Comparing against the last bar that could plausibly have
+// closed fixes that while still refetching once a new bar is due.
+function timeframeMs(tf: string): number {
+  switch (tf) {
+    case '1m': return 60_000;
+    case '5m': return 5 * 60_000;
+    case '15m': return 15 * 60_000;
+    case '1h': return 3_600_000;
+    case '1W': return 7 * 86_400_000;
+    case '1D':
+    default: return 86_400_000;
+  }
+}
+
 app.get('/api/bars', async (c) => {
   const symbol = (c.req.query('symbol') ?? 'SPY').toUpperCase();
   const tf = TimeframeSchema.parse(c.req.query('timeframe') ?? '1D');
@@ -34,7 +53,11 @@ app.get('/api/bars', async (c) => {
       const cached = await getCachedBars(symbol, tf, from, to);
       const meta = await getBarsMeta(symbol, tf);
 
-      if (meta && meta.first_t <= from && meta.last_t >= to) {
+      const barMs = timeframeMs(tf);
+      const lastClosedBar = Math.floor((Date.now() - barMs) / barMs) * barMs;
+      const coverageTarget = Math.min(to, lastClosedBar);
+
+      if (meta && meta.first_t <= from && meta.last_t >= coverageTarget) {
         return { source: 'cache', warnings: [] as string[], bars: cached, adjusted: true };
       }
 

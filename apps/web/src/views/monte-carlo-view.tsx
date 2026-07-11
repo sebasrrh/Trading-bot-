@@ -46,7 +46,7 @@ export function MonteCarloView({ result: { req, fan, terminal, terminalPercentil
       for (let t = 0; t < H; t++) {
         const x = xScale(t);
         const y = yScale(fan[lowerPi * H + t]!);
-        t === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        if (t === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
       }
       for (let t = H - 1; t >= 0; t--) {
         const x = xScale(t);
@@ -65,7 +65,7 @@ export function MonteCarloView({ result: { req, fan, terminal, terminalPercentil
     for (let t = 0; t < H; t++) {
       const x = xScale(t);
       const y = yScale(fan[mid * H + t]!);
-      t === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      if (t === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     }
     ctx.strokeStyle = 'rgba(0,200,100,0.8)';
     ctx.lineWidth = 2;
@@ -146,8 +146,8 @@ export function MonteCarloView({ result: { req, fan, terminal, terminalPercentil
     ctx.clearRect(0, 0, w, ht);
 
     const bins = 30;
-    let minV = -1, maxV = 0;
-    for (const v of maxDdValues) { if (v < minV) minV = v; }
+    let minV = Infinity, maxV = -Infinity;
+    for (const v of maxDdValues) { if (v < minV) minV = v; if (v > maxV) maxV = v; }
     const rng = maxV - minV || 1;
     const bucket = new Float64Array(bins);
     for (const v of maxDdValues) {

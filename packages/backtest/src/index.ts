@@ -1,4 +1,4 @@
-﻿import type { BarSeries } from '@tradeboard/core';
+import type { BarSeries } from '@tradeboard/core';
 import type { StrategyDef, StrategyContext, IndicatorAccessor } from '@tradeboard/strategies';
 import { sma, ema, rsi, atr, wma, macd, bbands, donchian, stoch } from '@tradeboard/indicators';
 

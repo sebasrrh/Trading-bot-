@@ -53,8 +53,15 @@ export class WebGPUBackend {
     const fanBuf = stor(P * H);
     const ghostBuf = stor(gc * H);
 
+    // getBindGroupLayout is a pipeline method, not a shader-module method —
+    // the pipeline must exist first (layout: 'auto' derives it from the WGSL).
+    const pipeline = d.createComputePipeline({
+      layout: 'auto',
+      compute: { module: this.module, entryPoint: 'main' },
+    });
+
     const bindGroup = d.createBindGroup({
-      layout: this.module.getBindGroupLayout(0),
+      layout: pipeline.getBindGroupLayout(0),
       entries: [
         { binding: 0, resource: { buffer: paramsBuf } },
         { binding: 1, resource: { buffer: srcBuf } },
@@ -64,11 +71,6 @@ export class WebGPUBackend {
         { binding: 5, resource: { buffer: fanBuf } },
         { binding: 6, resource: { buffer: ghostBuf } },
       ],
-    });
-
-    const pipeline = d.createComputePipeline({
-      layout: d.createPipelineLayout({ bindGroupLayouts: [this.module.getBindGroupLayout(0)] }),
-      compute: { module: this.module, entryPoint: 'main' },
     });
 
     const encoder = d.createCommandEncoder();

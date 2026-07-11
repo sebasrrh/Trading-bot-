@@ -66,6 +66,7 @@ export default function DashboardGrid({ workspace }: Props) {
           width={1200}
           onLayoutChange={(l) => setLayouts({ lg: l })}
           draggableHandle=".widget-drag-handle"
+          draggableCancel="button"
         >
           {instances.map((inst) => (
             <div key={inst.id} style={{ overflow: 'hidden' }}>

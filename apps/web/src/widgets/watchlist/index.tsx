@@ -1,4 +1,5 @@
 import { useQuotes } from '../../lib/hooks/useQuotes';
+import { useContextStore } from '../../state/context-store';
 import type { WidgetProps } from '../types';
 
 const DEFAULT_SYMBOLS = ['SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA'];
@@ -6,6 +7,8 @@ const DEFAULT_SYMBOLS = ['SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA'];
 export default function WatchlistWidget({ config }: WidgetProps) {
   const symbols: string[] = config.symbols ?? DEFAULT_SYMBOLS;
   const { data } = useQuotes(symbols);
+  const setChannel = useContextStore((s) => s.setChannel);
+  const channel: 'A' | 'B' | 'C' = config.channel ?? 'A';
 
   return (
     <div style={{ height: '100%', overflow: 'auto', fontSize: 12 }}>
@@ -22,12 +25,18 @@ export default function WatchlistWidget({ config }: WidgetProps) {
             const q = data?.quotes?.find(q => q.symbol === sym);
             const isUp = (q?.changePct ?? 0) >= 0;
             return (
-              <tr key={sym} style={{ borderTop: '1px solid var(--border-hairline)' }}>
+              <tr
+                key={sym}
+                onClick={() => setChannel(channel, { symbol: sym })}
+                style={{ borderTop: '1px solid var(--border-hairline)', cursor: 'pointer' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--bg-surface-2)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              >
                 <td style={{ padding: '4px 8px', fontWeight: 600 }}>{sym}</td>
                 <td style={{ padding: '4px 8px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
                   {q ? `$${(q.price).toFixed(2)}` : '—'}
                 </td>
-                <td style={{ padding: '4px 8px', textAlign: 'right', color: isUp ? 'var(--accent)' : 'var(--loss)' }}>
+                <td style={{ padding: '4px 8px', textAlign: 'right', color: isUp ? 'var(--gain)' : 'var(--loss)' }}>
                   {q ? `${isUp ? '+' : ''}${(q.changePct).toFixed(2)}%` : '—'}
                 </td>
               </tr>

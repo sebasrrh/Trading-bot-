@@ -18,7 +18,7 @@ export default function QuoteStripWidget({ config }: WidgetProps) {
               {q ? `$${(q.price).toFixed(2)}` : '\u2026'}
             </span>
             {q && (
-              <span style={{ fontSize: 11, color: isUp ? 'var(--accent)' : 'var(--loss)', fontWeight: 500 }}>
+              <span style={{ fontSize: 11, color: isUp ? 'var(--gain)' : 'var(--loss)', fontWeight: 500 }}>
                 {isUp ? '+' : ''}{(q.changePct).toFixed(2)}%
               </span>
             )}

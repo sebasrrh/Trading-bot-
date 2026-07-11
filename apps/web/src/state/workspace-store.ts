@@ -27,6 +27,11 @@ interface WorkspaceState {
 }
 
 const KEY = 'tradeboard.workspaces.v1';
+// Bump whenever the built-in presets change shape (new/renamed widgets, new
+// layout) so returning users pick up the update instead of being stuck on
+// whatever was in localStorage the first time they opened the app.
+const PRESET_VERSION = 2;
+const PRESET_NAMES = new Set(['Markets', 'Strategy Lab', 'Risk']);
 
 function wid(id: string): string { return `${id}-${Math.random().toString(36).slice(2, 6)}`; }
 
@@ -39,7 +44,7 @@ function preset(name: string, items: Array<{ widgetId: string; x: number; y: num
     layouts.push({ i: id, x: it.x, y: it.y, w: it.w, h: it.h, static: false });
     widgets[id] = { id, widgetId: it.widgetId, config: {}, channel: it.channel ?? 'A' };
   });
-  return { version: 1, name, layouts: { lg: layouts }, widgets };
+  return { version: PRESET_VERSION, name, layouts: { lg: layouts }, widgets };
 }
 
 const presets: Workspace[] = [
@@ -60,8 +65,28 @@ const presets: Workspace[] = [
   ]),
 ];
 
+// Refreshes any stored *built-in* preset workspace that predates the current
+// PRESET_VERSION (matched by name), so shipping a new preset widget actually
+// reaches users with existing localStorage. Workspaces the user renamed or
+// created themselves are left untouched.
+function migrate(stored: Workspace[]): Workspace[] {
+  const byName = new Map(presets.map((p) => [p.name, p]));
+  return stored.map((w) => {
+    if (PRESET_NAMES.has(w.name) && (w.version ?? 0) < PRESET_VERSION) {
+      return structuredClone(byName.get(w.name) ?? w);
+    }
+    return w;
+  });
+}
+
 function load(): Workspace[] {
-  try { const r = localStorage.getItem(KEY); return r ? JSON.parse(r) : structuredClone(presets); } catch { return structuredClone(presets); }
+  try {
+    const r = localStorage.getItem(KEY);
+    if (!r) return structuredClone(presets);
+    return migrate(JSON.parse(r));
+  } catch {
+    return structuredClone(presets);
+  }
 }
 function save(ws: Workspace[]) { try { localStorage.setItem(KEY, JSON.stringify(ws)); } catch { /* storage full or unavailable */ } }
 
@@ -74,7 +99,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => {
       const id = wid(widgetId);
       const w = { ...s.workspaces[s.active]! };
       w.widgets = { ...w.widgets, [id]: { id, widgetId, config: config ?? {}, channel: 'A' } };
-      // A widget without a layout entry never renders â€” append one at the bottom.
+      // A widget without a layout entry never renders — append one at the bottom.
       const { w: gw, h: gh } = size ?? { w: 4, h: 6 };
       const lg = w.layouts.lg ?? [];
       const bottom = lg.reduce((m, l) => Math.max(m, l.y + l.h), 0);

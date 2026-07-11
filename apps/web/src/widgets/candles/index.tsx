@@ -1,10 +1,13 @@
-﻿import { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { createChart } from 'lightweight-charts';
 import { useBars } from '../../lib/hooks/useBars';
 import { useContextStore } from '../../state/context-store';
 import type { WidgetProps } from '../types';
 
-const C = { bg: '#0d0d12', text: '#6b6b80', grid: '#1a1a24', up: '#26a69a', down: '#ef5350', wick: '#6b6b80' };
+// lightweight-charts renders to <canvas> and can't consume CSS custom
+// properties, so these mirror packages/ui/src/tokens.css exactly
+// (bg-surface-1, text-muted, border-hairline, gain, loss) — keep them in sync.
+const C = { bg: '#12151c', text: '#5c6577', grid: 'rgba(255,255,255,0.08)', up: '#3dd68c', down: '#f2555a', wick: '#5c6577' };
 
 export default function CandlesWidget({ config }: WidgetProps) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -33,7 +36,7 @@ export default function CandlesWidget({ config }: WidgetProps) {
       });
       chartRef.current = chart;
       candleRef.current = chart.addCandlestickSeries({ upColor: C.up, downColor: C.down, borderUpColor: C.up, borderDownColor: C.down, wickUpColor: C.wick, wickDownColor: C.wick });
-      volumeRef.current = chart.addHistogramSeries({ color: '#26a69a33', priceFormat: { type: 'volume' }, priceScaleId: 'volume' });
+      volumeRef.current = chart.addHistogramSeries({ color: C.up + '59', priceFormat: { type: 'volume' }, priceScaleId: 'volume' });
       chart.priceScale('volume').applyOptions({ scaleMargins: { top: 0.85, bottom: 0 } });
     }
     const obs = new ResizeObserver(() => { if (chartRef.current && el) chartRef.current.resize(el.clientWidth, el.clientHeight); });
@@ -45,7 +48,7 @@ export default function CandlesWidget({ config }: WidgetProps) {
     if (!data?.bars || !candleRef.current || !volumeRef.current) return;
     const bars = data.bars;
     const cdl = bars.map((b: any) => ({ time: (b.t / 1000) as any, open: b.o, high: b.h, low: b.l, close: b.c }));
-    const vol = bars.map((b: any) => ({ time: (b.t / 1000) as any, value: b.v, color: b.c >= b.o ? C.up + '44' : C.down + '44' }));
+    const vol = bars.map((b: any) => ({ time: (b.t / 1000) as any, value: b.v, color: (b.c >= b.o ? C.up : C.down) + '59' }));
     candleRef.current.setData(cdl);
     volumeRef.current.setData(vol);
     chartRef.current?.timeScale().fitContent();

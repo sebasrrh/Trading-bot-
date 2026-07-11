@@ -3,6 +3,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { LayoutDashboard, FlaskConical, TrendingUp, Wallet, Search } from 'lucide-react';
 import { queryClient } from '../lib/query-client';
 import { useContextStore, useWorkspaceStore } from '../state';
+import { useDataSourceStore } from '../state/data-source-store';
 import { widgetRegistry } from '../widgets/registry';
 import DashboardGrid from './dashboard-grid';
 import CommandPalette from '../components/command-palette';
@@ -43,6 +44,13 @@ export default function App() {
   const addWidget = useWorkspaceStore((s) => s.addWidget);
   const setView = useContextStore((s) => s.setActiveView);
   const activeView = useContextStore((s) => s.activeView);
+  const dataSource = useDataSourceStore((s) => s.source);
+  const dataWarnings = useDataSourceStore((s) => s.warnings);
+  const dataUpdatedAt = useDataSourceStore((s) => s.updatedAt);
+  // 'cache' is the happy path (fast, no warnings) — only flag real degradation:
+  // a provider errored along the way, or (once a response has actually come
+  // back) every provider failed outright.
+  const degraded = dataWarnings.length > 0 || (dataUpdatedAt > 0 && dataSource === null);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -74,7 +82,17 @@ export default function App() {
             style={{ border: 'none', background: 'var(--accent-soft)', color: 'var(--accent)', borderRadius: 'var(--radius-s)', padding: '4px 10px', fontSize: 11, fontWeight: 500, cursor: 'pointer', letterSpacing: '0.02em' }}>
             ⌘K
           </button>
-          <div style={{ padding: '4px 10px', borderRadius: 'var(--radius-s)', background: 'var(--accent-soft)', color: 'var(--accent)', fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Stooq</div>
+          <div
+            title={dataWarnings.length > 0 ? dataWarnings.join('; ') : undefined}
+            style={{
+              padding: '4px 10px', borderRadius: 'var(--radius-s)',
+              background: degraded ? 'var(--loss-soft)' : 'var(--accent-soft)',
+              color: degraded ? 'var(--warn)' : 'var(--accent)',
+              fontSize: 11, fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.04em',
+            }}
+          >
+            {dataUpdatedAt === 0 ? '…' : dataSource === null ? 'No Data' : dataSource}
+          </div>
         </header>
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           <nav style={{ width: 56, borderRight: '1px solid var(--border-hairline)', background: 'var(--bg-surface-1)', display: 'flex', flexDirection: 'column', alignItems: 'center', paddingTop: 8, gap: 4 }}>
