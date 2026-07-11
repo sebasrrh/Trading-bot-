@@ -1,16 +1,20 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import type { NewOrder } from "@tradeboard/paper";
 import { usePaperStore } from "../state/paper-store";
 import { useContextStore } from "../state/context-store";
+import { useQuote } from "../lib/hooks/useQuotes";
 
 export default function PaperTrading() {
   const ctx = useContextStore();
   const sym = ctx.channels.A.symbol;
   const getEngine = usePaperStore((s) => s.getEngine);
   const bump = usePaperStore((s) => s.bump);
+  const resetAccount = usePaperStore((s) => s.resetAccount);
   const refreshKey = usePaperStore((s) => s.refreshKey);
   const eng = getEngine();
   void refreshKey;
+
+  const { data: quote } = useQuote(sym);
 
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState("");
@@ -18,9 +22,12 @@ export default function PaperTrading() {
   const [orderQty, setOrderQty] = useState(10);
   const [orderType, setOrderType] = useState<"market" | "limit" | "stop">("market");
   const [orderPrice, setOrderPrice] = useState("");
+  const [orderMsg, setOrderMsg] = useState<{ text: string; tone: "ok" | "error" } | null>(null);
   const [bindings, setBindings] = useState(eng.account.autoStrategies);
   const [autoFeed, setAutoFeed] = useState(false);
   const [autoInterval, setAutoInterval] = useState(10);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const [confirmFlatten, setConfirmFlatten] = useState(false);
   const fetchInProgress = useRef(false);
   const autoRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const autoEnabled = useRef(false);
@@ -32,7 +39,7 @@ export default function PaperTrading() {
     if (fetchInProgress.current) return;
     fetchInProgress.current = true;
     if (!autoEnabled.current) setRunning(true);
-    setProgress("Fetching bars\u2026");
+    setProgress("Fetching bars…");
     try {
       const res = await fetch(`/api/bars?symbol=${sym}&timeframe=1D&from=0&to=${Date.now()}`);
       const data = await res.json();
@@ -40,7 +47,7 @@ export default function PaperTrading() {
       if (arr.length === 0) { setProgress("No data"); setRunning(false); fetchInProgress.current = false; return; }
       const bars = arr.map((b: any) => ({ o: b.o, h: b.h, l: b.l, c: b.c, v: b.v ?? 0, t: b.t }));
       eng.processBars(sym, bars);
-      setProgress(`\u2713 ${arr.length} bars`);
+      setProgress(`✓ ${arr.length} bars`);
       bump();
     } catch (err) { setProgress(`Error: ${err}`); }
     if (!autoEnabled.current) setRunning(false);
@@ -57,15 +64,56 @@ export default function PaperTrading() {
     };
   }, [autoFeed, autoInterval, doFeed]);
 
-  const placeOrder = useCallback(() => {
-    const n: NewOrder = { symbol: sym, side: orderSide, qty: orderQty, type: orderType };
-    if ((orderType === "limit" || orderType === "stop") && orderPrice) {
-      if (orderType === "limit") n.limitPrice = Number(orderPrice);
-      else n.stopPrice = Number(orderPrice);
+  // Reset any pending confirm state if the user navigates away from it.
+  useEffect(() => {
+    if (!confirmReset) return;
+    const t = setTimeout(() => setConfirmReset(false), 4000);
+    return () => clearTimeout(t);
+  }, [confirmReset]);
+  useEffect(() => {
+    if (!confirmFlatten) return;
+    const t = setTimeout(() => setConfirmFlatten(false), 4000);
+    return () => clearTimeout(t);
+  }, [confirmFlatten]);
+
+  const positions = [...eng.account.positions.values()];
+  const currentPosition = eng.account.positions.get(sym);
+  const eq = eng.equity();
+
+  const orderError = useMemo(() => {
+    if (!orderQty || orderQty <= 0) return "Quantity must be greater than 0.";
+    if ((orderType === "limit" || orderType === "stop") && !orderPrice) {
+      return `${orderType === "limit" ? "Limit" : "Stop"} orders need a price.`;
     }
+    if (orderSide === "sell" && (!currentPosition || currentPosition.qty <= 0)) {
+      return `No ${sym} position to sell.`;
+    }
+    return null;
+  }, [orderQty, orderType, orderPrice, orderSide, currentPosition, sym]);
+
+  const placeOrder = useCallback(() => {
+    if (orderError) { setOrderMsg({ text: orderError, tone: "error" }); return; }
+    const n: NewOrder = { symbol: sym, side: orderSide, qty: orderQty, type: orderType };
+    if (orderType === "limit") n.limitPrice = Number(orderPrice);
+    else if (orderType === "stop") n.stopPrice = Number(orderPrice);
     eng.placeOrder(n);
     bump();
-  }, [sym, orderSide, orderQty, orderType, orderPrice, eng, bump]);
+    setOrderPrice("");
+    setOrderMsg({ text: `${orderSide === "buy" ? "Buy" : "Sell"} order queued — fills on the next bar feed.`, tone: "ok" });
+  }, [orderError, sym, orderSide, orderQty, orderType, orderPrice, eng, bump]);
+
+  // 25/50/100% quick-fill: buy sizes off available cash at the last quote,
+  // sell sizes off the qty actually held — docs/08 §6.
+  const setQtyFraction = useCallback((frac: number) => {
+    if (orderSide === "sell") {
+      const held = currentPosition?.qty ?? 0;
+      setOrderQty(Math.max(1, Math.floor(held * frac)));
+    } else {
+      const px = quote?.price;
+      if (!px) return;
+      setOrderQty(Math.max(1, Math.floor((eq.cash * frac) / px)));
+    }
+  }, [orderSide, currentPosition, quote, eq.cash]);
 
   const cancelOrder = useCallback((id: string) => {
     eng.cancelOrder(id);
@@ -77,26 +125,49 @@ export default function PaperTrading() {
     if (b) { b.enabled = !b.enabled; setBindings([...eng.account.autoStrategies]); bump(); }
   }, [eng, bump]);
 
-  const eq = eng.equity();
-  const positions = [...eng.account.positions.values()];
+  const handleReset = useCallback(() => {
+    if (!confirmReset) { setConfirmReset(true); return; }
+    resetAccount();
+    setConfirmReset(false);
+    setOrderMsg({ text: "Account reset to $100,000.", tone: "ok" });
+  }, [confirmReset, resetAccount]);
+
+  const handleFlatten = useCallback(() => {
+    if (!confirmFlatten) { setConfirmFlatten(true); return; }
+    for (const p of positions) {
+      if (p.qty === 0) continue;
+      eng.placeOrder({ symbol: p.symbol, side: p.qty > 0 ? "sell" : "buy", qty: Math.abs(p.qty), type: "market" });
+    }
+    bump();
+    setConfirmFlatten(false);
+    setOrderMsg({ text: "Flatten orders queued for all positions — fills on the next bar feed.", tone: "ok" });
+  }, [confirmFlatten, positions, eng, bump]);
+
   const openOrders = eng.account.openOrders.filter((o) => o.status === "open");
   const fills = eng.account.fills.slice(-50).reverse();
 
   return (
     <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
       <div style={{ width: 300, borderRight: "1px solid var(--border-hairline)", padding: 12, overflow: "auto", display: "flex", flexDirection: "column", gap: 12 }}>
-        <h2 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>Paper Trading</h2>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <h2 style={{ fontSize: 14, fontWeight: 700, margin: 0 }}>Paper Trading</h2>
+          <button onClick={handleReset} data-testid="reset-account-btn" title="Wipes the account back to $100,000 cash — cannot be undone"
+            style={{ padding: "3px 8px", border: "1px solid var(--border-hairline)", borderRadius: "var(--radius-s)", background: confirmReset ? "var(--loss-soft)" : "var(--bg-surface-2)", color: confirmReset ? "var(--loss)" : "var(--text-secondary)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>
+            {confirmReset ? "Confirm reset?" : "Reset"}
+          </button>
+        </div>
         <div style={{ background: "var(--bg-surface-1)", borderRadius: "var(--radius-s)", padding: 10, display: "flex", flexDirection: "column", gap: 4 }}>
           <div style={{ fontSize: 11, color: "var(--text-muted)" }}>ACCOUNT</div>
           <Row label="Cash" val={`$${eq.cash.toLocaleString("en-US", { minimumFractionDigits: 2 })}`} />
           <Row label="Equity" val={`$${eq.total.toLocaleString("en-US", { minimumFractionDigits: 2 })}`} />
-          <Row label="Return" val={`${(eq.ret * 100).toFixed(2)}%`} color={eq.ret >= 0 ? "var(--accent)" : "var(--loss)"} />
+          <Row label="Return" val={`${(eq.ret * 100).toFixed(2)}%`} color={eq.ret >= 0 ? "var(--gain)" : "var(--loss)"} />
           <Row label="Positions" val={`${positions.length}`} />
           <Row label="Open Orders" val={`${openOrders.length}`} />
         </div>
 
         <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
           <button onClick={doFeed} disabled={running || autoFeed}
+            title="Fetches the latest bars and runs them through the fill engine and any enabled auto-strategies"
             style={{ flex: 1, padding: "8px 16px", border: "none", borderRadius: "var(--radius-s)", background: autoFeed ? "var(--bg-surface-2)" : "var(--accent)", color: autoFeed ? "var(--text-muted)" : "#fff", fontSize: 13, fontWeight: 600, cursor: "pointer" }}>
             {autoFeed ? `Auto ${autoInterval}s` : running ? progress : `Feed ${sym} Bars`}
           </button>
@@ -104,6 +175,10 @@ export default function PaperTrading() {
             <input type="checkbox" checked={autoFeed} onChange={(e) => setAutoFeed(e.target.checked)} />
             Auto
           </label>
+        </div>
+        <div style={{ fontSize: 11, color: "var(--text-muted)", lineHeight: 1.4 }}>
+          Orders queue immediately but only fill the next time bars are fed —
+          turn on Auto to keep them flowing without clicking.
         </div>
         {autoFeed && (
           <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
@@ -116,12 +191,12 @@ export default function PaperTrading() {
         )}
 
         <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-          <label style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>Place Order</label>
+          <label style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>Place Order — {sym}</label>
           <div style={{ display: "flex", gap: 4 }}>
             <button onClick={() => setOrderSide("buy")}
-              style={{ flex: 1, padding: "4px 6px", border: orderSide === "buy" ? "1px solid var(--accent)" : "1px solid var(--border-hairline)", borderRadius: "var(--radius-s)", background: orderSide === "buy" ? "var(--accent-soft)" : "var(--bg-surface-2)", color: orderSide === "buy" ? "var(--accent)" : "var(--text-secondary)", fontSize: 11, cursor: "pointer" }}>Buy</button>
+              style={{ flex: 1, padding: "4px 6px", border: orderSide === "buy" ? "1px solid var(--gain)" : "1px solid var(--border-hairline)", borderRadius: "var(--radius-s)", background: orderSide === "buy" ? "var(--gain-soft)" : "var(--bg-surface-2)", color: orderSide === "buy" ? "var(--gain)" : "var(--text-secondary)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Buy</button>
             <button onClick={() => setOrderSide("sell")}
-              style={{ flex: 1, padding: "4px 6px", border: orderSide === "sell" ? "1px solid var(--loss)" : "1px solid var(--border-hairline)", borderRadius: "var(--radius-s)", background: orderSide === "sell" ? "var(--loss-soft)" : "var(--bg-surface-2)", color: orderSide === "sell" ? "var(--loss)" : "var(--text-secondary)", fontSize: 11, cursor: "pointer" }}>Sell</button>
+              style={{ flex: 1, padding: "4px 6px", border: orderSide === "sell" ? "1px solid var(--loss)" : "1px solid var(--border-hairline)", borderRadius: "var(--radius-s)", background: orderSide === "sell" ? "var(--loss-soft)" : "var(--bg-surface-2)", color: orderSide === "sell" ? "var(--loss)" : "var(--text-secondary)", fontSize: 11, fontWeight: 600, cursor: "pointer" }}>Sell</button>
           </div>
           <select value={orderType} onChange={(e) => setOrderType(e.target.value as any)}
             style={{ padding: "4px 6px", border: "1px solid var(--border-hairline)", borderRadius: "var(--radius-s)", background: "var(--bg-surface-2)", color: "var(--text-primary)", fontSize: 12 }}>
@@ -129,25 +204,45 @@ export default function PaperTrading() {
             <option value="limit">Limit</option>
             <option value="stop">Stop</option>
           </select>
-          <input type="number" value={orderQty} onChange={(e) => setOrderQty(Number(e.target.value))} placeholder="Qty"
+          <input type="number" min={1} value={orderQty} onChange={(e) => setOrderQty(Number(e.target.value))} placeholder="Qty"
             style={{ padding: "4px 6px", border: "1px solid var(--border-hairline)", borderRadius: "var(--radius-s)", background: "var(--bg-surface-2)", color: "var(--text-primary)", fontSize: 12 }} />
+          <div style={{ display: "flex", gap: 4 }}>
+            {[0.25, 0.5, 1].map((frac) => (
+              <button key={frac} onClick={() => setQtyFraction(frac)}
+                style={{ flex: 1, padding: "3px 4px", border: "1px solid var(--border-hairline)", borderRadius: "var(--radius-s)", background: "var(--bg-surface-2)", color: "var(--text-secondary)", fontSize: 10, cursor: "pointer" }}>
+                {frac === 1 ? "100%" : `${frac * 100}%`}
+              </button>
+            ))}
+          </div>
           {(orderType === "limit" || orderType === "stop") && (
             <input type="number" value={orderPrice} onChange={(e) => setOrderPrice(e.target.value)} placeholder={orderType === "limit" ? "Limit price" : "Stop price"}
               style={{ padding: "4px 6px", border: "1px solid var(--border-hairline)", borderRadius: "var(--radius-s)", background: "var(--bg-surface-2)", color: "var(--text-primary)", fontSize: 12 }} />
           )}
-          <button onClick={placeOrder}
-            style={{ padding: "6px 12px", border: "none", borderRadius: "var(--radius-s)", background: "var(--accent)", color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
+          <button onClick={placeOrder} disabled={!!orderError}
+            style={{ padding: "6px 12px", border: "none", borderRadius: "var(--radius-s)", background: orderError ? "var(--bg-surface-2)" : "var(--accent)", color: orderError ? "var(--text-muted)" : "#fff", fontSize: 12, fontWeight: 600, cursor: orderError ? "not-allowed" : "pointer" }}>
             Place {orderSide === "buy" ? "Buy" : "Sell"} Order
           </button>
+          {orderMsg && (
+            <div style={{ fontSize: 11, color: orderMsg.tone === "ok" ? "var(--gain)" : "var(--loss)" }}>
+              {orderMsg.text}
+            </div>
+          )}
         </div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+
+        <button onClick={handleFlatten} disabled={positions.length === 0} data-testid="flatten-all-btn"
+          title="Market-sell (or buy back) everything in the account"
+          style={{ padding: "6px 12px", border: "1px solid " + (confirmFlatten ? "var(--loss)" : "var(--border-hairline)"), borderRadius: "var(--radius-s)", background: confirmFlatten ? "var(--loss-soft)" : "var(--bg-surface-2)", color: positions.length === 0 ? "var(--text-muted)" : confirmFlatten ? "var(--loss)" : "var(--text-secondary)", fontSize: 12, fontWeight: 600, cursor: positions.length === 0 ? "not-allowed" : "pointer" }}>
+          {confirmFlatten ? "Confirm flatten all?" : "Flatten All Positions"}
+        </button>
+
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
           <label style={{ fontSize: 11, color: "var(--text-muted)", textTransform: "uppercase" }}>Auto Strategies</label>
           {bindings.map((b) => (
             <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "4px 6px", background: "var(--bg-surface-1)", borderRadius: "var(--radius-s)", fontSize: 11 }}>
               <input type="checkbox" checked={b.enabled} onChange={() => toggleBinding(b.id)} style={{ cursor: "pointer" }} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontWeight: 600 }}>{b.strategyId}</div>
-                <div style={{ color: "var(--text-muted)" }}>{b.symbol} \u00B7 {(b.allocation * 100).toFixed(0)}%</div>
+                <div style={{ color: "var(--text-muted)" }}>{b.symbol} · {(b.allocation * 100).toFixed(0)}%</div>
               </div>
             </div>
           ))}
@@ -165,7 +260,7 @@ export default function PaperTrading() {
                   <td style={{ padding: "4px 8px", fontWeight: 600 }}>{p.symbol}</td>
                   <td style={{ padding: "4px 8px", textAlign: "right" }}>{p.qty}</td>
                   <td style={{ padding: "4px 8px", textAlign: "right" }}>${p.avgPrice.toFixed(2)}</td>
-                  <td style={{ padding: "4px 8px", textAlign: "right", color: p.unrealizedPnl >= 0 ? "var(--accent)" : "var(--loss)", fontWeight: 600 }}>${p.unrealizedPnl.toFixed(2)}</td>
+                  <td style={{ padding: "4px 8px", textAlign: "right", color: p.unrealizedPnl >= 0 ? "var(--gain)" : "var(--loss)", fontWeight: 600 }}>${p.unrealizedPnl.toFixed(2)}</td>
                 </tr>
               ))}
             </Table>
@@ -180,10 +275,10 @@ export default function PaperTrading() {
               {openOrders.map((o) => (
                 <tr key={o.id} style={{ borderBottom: "1px solid var(--border-hairline)" }}>
                   <td style={{ padding: "4px 8px", fontWeight: 600 }}>{o.symbol}</td>
-                  <td style={{ padding: "4px 8px", color: o.side === "buy" ? "var(--accent)" : "var(--loss)" }}>{o.side}</td>
+                  <td style={{ padding: "4px 8px", color: o.side === "buy" ? "var(--gain)" : "var(--loss)" }}>{o.side}</td>
                   <td style={{ padding: "4px 8px", textAlign: "right" }}>{o.qty}</td>
                   <td style={{ padding: "4px 8px" }}>{o.type}</td>
-                  <td style={{ padding: "4px 8px", textAlign: "right" }}>{o.limitPrice ?? o.stopPrice ?? "\u2014"}</td>
+                  <td style={{ padding: "4px 8px", textAlign: "right" }}>{o.limitPrice ?? o.stopPrice ?? "—"}</td>
                   <td style={{ padding: "4px 8px", textAlign: "right" }}>
                     <button onClick={() => cancelOrder(o.id)}
                       style={{ border: "none", background: "transparent", color: "var(--loss)", cursor: "pointer", fontSize: 11, textDecoration: "underline" }}>Cancel</button>
@@ -204,11 +299,11 @@ export default function PaperTrading() {
                   <tr key={f.id} style={{ borderBottom: "1px solid var(--border-hairline)" }}>
                     <td style={{ padding: "3px 6px", color: "var(--text-muted)" }}>{new Date(f.t).toLocaleDateString()}</td>
                     <td style={{ padding: "3px 6px", fontWeight: 600 }}>{f.symbol}</td>
-                    <td style={{ padding: "3px 6px", color: f.side === "buy" ? "var(--accent)" : "var(--loss)" }}>{f.side}</td>
+                    <td style={{ padding: "3px 6px", color: f.side === "buy" ? "var(--gain)" : "var(--loss)" }}>{f.side}</td>
                     <td style={{ padding: "3px 6px", textAlign: "right" }}>{f.qty}</td>
                     <td style={{ padding: "3px 6px", textAlign: "right" }}>${f.price.toFixed(2)}</td>
-                    <td style={{ padding: "3px 6px", textAlign: "right", color: f.pnl != null ? (f.pnl >= 0 ? "var(--accent)" : "var(--loss)") : "var(--text-muted)", fontWeight: 600 }}>
-                      {f.pnl != null ? `$${f.pnl.toFixed(2)}` : "\u2014"}
+                    <td style={{ padding: "3px 6px", textAlign: "right", color: f.pnl != null ? (f.pnl >= 0 ? "var(--gain)" : "var(--loss)") : "var(--text-muted)", fontWeight: 600 }}>
+                      {f.pnl != null ? `$${f.pnl.toFixed(2)}` : "—"}
                     </td>
                   </tr>
                 ))}

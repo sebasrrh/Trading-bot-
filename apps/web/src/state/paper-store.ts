@@ -24,6 +24,17 @@ function persistAccount(acct: PaperAccount): void {
   try { localStorage.setItem(KEY, serializeAccount(acct)); } catch { /* storage full or unavailable */ }
 }
 
+function freshAccount(): PaperAccount {
+  const acct = createAccount('Trader', 100_000);
+  acct.autoStrategies.push({
+    id: 's1', strategyId: 'sma-cross', params: { fast: 10, slow: 30 }, symbol: 'SPY', allocation: 0.5, enabled: false,
+  });
+  acct.autoStrategies.push({
+    id: 's2', strategyId: 'rsi-mean-revert', params: { period: 14, oversold: 30, overbought: 70 }, symbol: 'SPY', allocation: 0.3, enabled: false,
+  });
+  return acct;
+}
+
 let _engine: PaperEngine | null = null;
 let _initialized = false;
 
@@ -36,17 +47,7 @@ function getEngine(): PaperEngine {
       if (saved) acct = deserializeAccount(saved);
     } catch { /* storage unavailable */ }
 
-    if (!acct) {
-      acct = createAccount('Trader', 100_000);
-      acct.autoStrategies.push({
-        id: 's1', strategyId: 'sma-cross', params: { fast: 10, slow: 30 }, symbol: 'SPY', allocation: 0.5, enabled: false,
-      });
-      acct.autoStrategies.push({
-        id: 's2', strategyId: 'rsi-mean-revert', params: { period: 14, oversold: 30, overbought: 70 }, symbol: 'SPY', allocation: 0.3, enabled: false,
-      });
-    }
-
-    _engine = new PaperEngine(acct, allStrategies());
+    _engine = new PaperEngine(acct ?? freshAccount(), allStrategies());
   }
   return _engine!;
 }
@@ -55,6 +56,8 @@ interface PaperStoreState {
   refreshKey: number;
   bump: () => void;
   getEngine: () => PaperEngine;
+  /** Wipes the account back to $100k cash, no positions, no history. Cannot be undone. */
+  resetAccount: () => void;
 }
 
 export const usePaperStore = create<PaperStoreState>((set) => ({
@@ -63,4 +66,9 @@ export const usePaperStore = create<PaperStoreState>((set) => ({
   // never falls out of sync with what the UI is showing.
   bump: () => set((s) => { persistAccount(getEngine().account); return { refreshKey: s.refreshKey + 1 }; }),
   getEngine,
+  resetAccount: () => set((s) => {
+    _engine = new PaperEngine(freshAccount(), allStrategies());
+    try { localStorage.removeItem(KEY); } catch { /* storage unavailable */ }
+    return { refreshKey: s.refreshKey + 1 };
+  }),
 }));
