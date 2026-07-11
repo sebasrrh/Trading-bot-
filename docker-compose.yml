@@ -1,6 +1,8 @@
 services:
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: pnpm --filter @tradeboard/api dev
     ports:
       - '8787:8787'
@@ -12,7 +14,9 @@ services:
       - NODE_ENV=development
 
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     command: pnpm --filter @tradeboard/web dev
     ports:
       - '5173:5173'
