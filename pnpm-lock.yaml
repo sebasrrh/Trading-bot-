@@ -87,6 +87,9 @@ importers:
       '@tradeboard/indicators':
         specifier: workspace:*
         version: link:../../packages/indicators
+      '@tradeboard/optimizer':
+        specifier: workspace:*
+        version: link:../../packages/optimizer
       '@tradeboard/paper':
         specifier: workspace:*
         version: link:../../packages/paper
@@ -148,6 +151,9 @@ importers:
       '@tradeboard/core':
         specifier: workspace:*
         version: link:../core
+      '@tradeboard/indicators':
+        specifier: workspace:*
+        version: link:../indicators
       '@tradeboard/strategies':
         specifier: workspace:*
         version: link:../strategies
@@ -198,11 +204,36 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.20.1)
 
+  packages/optimizer:
+    dependencies:
+      '@tradeboard/backtest':
+        specifier: workspace:*
+        version: link:../backtest
+      '@tradeboard/core':
+        specifier: workspace:*
+        version: link:../core
+      '@tradeboard/strategies':
+        specifier: workspace:*
+        version: link:../strategies
+    devDependencies:
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.20.1)
+
   packages/paper:
     dependencies:
       '@tradeboard/core':
         specifier: workspace:*
         version: link:../core
+      '@tradeboard/indicators':
+        specifier: workspace:*
+        version: link:../indicators
+      '@tradeboard/strategies':
+        specifier: workspace:*
+        version: link:../strategies
     devDependencies:
       typescript:
         specifier: ^5.7.0

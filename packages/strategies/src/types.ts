@@ -5,6 +5,12 @@ export interface IndicatorAccessor {
   sma(period: number): Float64Array;
   ema(period: number): Float64Array;
   rsi(period: number): Float64Array;
+  atr(period: number): Float64Array;
+  wma(period: number): Float64Array;
+  macd(fast?: number, slow?: number, signal?: number): { macd: Float64Array; signal: Float64Array; histogram: Float64Array };
+  bbands(period?: number, stdDev?: number): { upper: Float64Array; middle: Float64Array; lower: Float64Array };
+  donchian(period: number): { upper: Float64Array; middle: Float64Array; lower: Float64Array };
+  stoch(kPeriod?: number, dPeriod?: number): { k: Float64Array; d: Float64Array };
 }
 
 export interface StrategyContext {

@@ -1,5 +1,5 @@
 {
-  "name": "@tradeboard/backtest",
+  "name": "@tradeboard/optimizer",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -19,8 +19,8 @@
   },
   "dependencies": {
     "@tradeboard/core": "workspace:*",
-    "@tradeboard/strategies": "workspace:*",
-    "@tradeboard/indicators": "workspace:*"
+    "@tradeboard/backtest": "workspace:*",
+    "@tradeboard/strategies": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.0",

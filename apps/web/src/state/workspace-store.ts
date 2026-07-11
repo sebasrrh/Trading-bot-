@@ -1,4 +1,4 @@
-﻿import { create } from 'zustand';
+import { create } from 'zustand';
 import type { Layout } from 'react-grid-layout';
 
 export interface WidgetInstance {
@@ -50,8 +50,10 @@ const presets: Workspace[] = [
     { widgetId: 'stat-tile', x: 0, y: 12, w: 3, h: 4 },
   ]),
   preset('Strategy Lab', [
-    { widgetId: 'candles', x: 0, y: 0, w: 8, h: 10 },
-    { widgetId: 'watchlist', x: 8, y: 0, w: 4, h: 10 },
+    { widgetId: 'candles', x: 0, y: 0, w: 6, h: 10 },
+    { widgetId: 'equity-curve', x: 6, y: 0, w: 6, h: 8 },
+    { widgetId: 'drawdown', x: 6, y: 8, w: 6, h: 6 },
+    { widgetId: 'run-metrics', x: 0, y: 10, w: 12, h: 6 },
   ]),
   preset('Risk', [
     { widgetId: 'candles', x: 0, y: 0, w: 12, h: 10 },
@@ -72,7 +74,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => {
       const id = wid(widgetId);
       const w = { ...s.workspaces[s.active]! };
       w.widgets = { ...w.widgets, [id]: { id, widgetId, config: config ?? {}, channel: 'A' } };
-      // A widget without a layout entry never renders — append one at the bottom.
+      // A widget without a layout entry never renders â€” append one at the bottom.
       const { w: gw, h: gh } = size ?? { w: 4, h: 6 };
       const lg = w.layouts.lg ?? [];
       const bottom = lg.reduce((m, l) => Math.max(m, l.y + l.h), 0);

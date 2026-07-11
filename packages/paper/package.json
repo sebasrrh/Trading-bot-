@@ -18,7 +18,9 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@tradeboard/core": "workspace:*"
+    "@tradeboard/core": "workspace:*",
+    "@tradeboard/strategies": "workspace:*",
+    "@tradeboard/indicators": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.7.0",

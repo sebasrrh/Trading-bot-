@@ -1,0 +1,35 @@
+services:
+  api:
+    build: .
+    command: pnpm --filter @tradeboard/api dev
+    ports:
+      - '8787:8787'
+    volumes:
+      - ./packages/core/src:/app/packages/core/src
+      - ./packages/data/src:/app/packages/data/src
+      - ./apps/api/src:/app/apps/api/src
+    environment:
+      - NODE_ENV=development
+
+  web:
+    build: .
+    command: pnpm --filter @tradeboard/web dev
+    ports:
+      - '5173:5173'
+    volumes:
+      - ./packages/ui/src:/app/packages/ui/src
+      - ./packages/core/src:/app/packages/core/src
+      - ./packages/data/src:/app/packages/data/src
+      - ./packages/indicators/src:/app/packages/indicators/src
+      - ./packages/strategies/src:/app/packages/strategies/src
+      - ./packages/backtest/src:/app/packages/backtest/src
+      - ./packages/sim/src:/app/packages/sim/src
+      - ./packages/paper/src:/app/packages/paper/src
+      - ./packages/optimizer/src:/app/packages/optimizer/src
+      - ./apps/web/src:/app/apps/web/src
+      - ./apps/web/index.html:/app/apps/web/index.html
+      - ./apps/web/vite.config.ts:/app/apps/web/vite.config.ts
+    environment:
+      - NODE_ENV=development
+    depends_on:
+      - api

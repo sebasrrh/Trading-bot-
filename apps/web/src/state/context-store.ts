@@ -14,7 +14,7 @@ export interface ContextState {
   defaultChannel: ChannelId;
   setChannel: (ch: ChannelId, update: Partial<LinkChannel>) => void;
   getChannel: (ch: ChannelId | null) => LinkChannel;
-  activeView: 'dashboard' | 'lab' | 'sim' | 'paper' | 'settings';
+  activeView: 'dashboard' | 'lab' | 'sim' | 'paper' | 'optimizer' | 'settings';
   setActiveView: (v: ContextState['activeView']) => void;
 }
 

@@ -20,6 +20,7 @@
     "@tradeboard/backtest": "workspace:*",
     "@tradeboard/sim": "workspace:*",
     "@tradeboard/paper": "workspace:*",
+    "@tradeboard/optimizer": "workspace:*",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "zustand": "^5.0.0",

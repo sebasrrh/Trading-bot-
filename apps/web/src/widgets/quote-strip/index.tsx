@@ -3,7 +3,8 @@ import type { WidgetProps } from '../types';
 
 export default function QuoteStripWidget({ config }: WidgetProps) {
   const symbols: string[] = config.symbols ?? ['SPY', 'QQQ', 'AAPL', 'TSLA', 'NVDA', 'MSFT', 'GOOGL', 'AMZN'];
-  const { data } = useQuotes(symbols);
+  const interval: number = config.refreshInterval ?? 5_000;
+  const { data } = useQuotes(symbols, interval);
 
   return (
     <div style={{ height: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '0 12px', overflow: 'auto' }}>
@@ -14,7 +15,7 @@ export default function QuoteStripWidget({ config }: WidgetProps) {
           <div key={sym} style={{ display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
             <span style={{ fontWeight: 600, fontSize: 12 }}>{sym}</span>
             <span style={{ fontSize: 12, fontVariantNumeric: 'tabular-nums' }}>
-              {q ? `$${(q.price).toFixed(2)}` : '…'}
+              {q ? `$${(q.price).toFixed(2)}` : '\u2026'}
             </span>
             {q && (
               <span style={{ fontSize: 11, color: isUp ? 'var(--accent)' : 'var(--loss)', fontWeight: 500 }}>
