@@ -1,4 +1,4 @@
-const API = 'http://localhost:8787';
+const API = '';
 
 export async function apiFetch<T>(path: string): Promise<T> {
   const res = await fetch(`${API}${path}`);

@@ -1,0 +1,38 @@
+services:
+  api:
+    image: madpods/tradeboard-api:latest
+    restart: unless-stopped
+    networks:
+      - internal-web
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+
+  web:
+    image: madpods/tradeboard-web:latest
+    ports:
+      - "8501:80"
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - internal-web
+    labels:
+      - com.centurylinklabs.watchtower.enable=true
+
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - WATCHTOWER_POLL_INTERVAL=300
+      - WATCHTOWER_CLEANUP=true
+      - DOCKER_API_VERSION=1.44
+      - WATCHTOWER_LABEL_ENABLE=true
+    networks:
+      - internal-web
+
+networks:
+  internal-web:
+    external: true

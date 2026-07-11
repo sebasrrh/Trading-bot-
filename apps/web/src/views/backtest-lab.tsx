@@ -52,8 +52,8 @@ export default function BacktestLab() {
   }, []);
 
   const run = useCallback(async () => {
-    setRunning(true); setProgress('Fetching bars…'); setResult(null); setBahResult(null); setMcResult(null);
-    const barsRes = await fetch(`http://localhost:8787/api/bars?symbol=${sym}&timeframe=1D&from=0&to=${Date.now()}`);
+    setRunning(true); setProgress('Fetching barsâ€¦'); setResult(null); setBahResult(null); setMcResult(null);
+    const barsRes = await fetch(`/api/bars?symbol=${sym}&timeframe=1D&from=0&to=${Date.now()}`);
     const barsData = await barsRes.json();
     const barsArray = barsData.bars ?? [];
     if (barsArray.length === 0) { setProgress('No data returned.'); setRunning(false); return; }
@@ -73,14 +73,14 @@ export default function BacktestLab() {
         // Run MC on saved returns if available, or run a backtest first
         let returns = savedReturns;
         if (!returns) {
-          setProgress('Running backtest for returns…');
+          setProgress('Running backtest for returnsâ€¦');
           const r = await runWorker(makeCfg(selectedId, params), bars);
           returns = new Float32Array(r.returnsPerBar);
           setSavedReturns(returns);
         }
-        setProgress('Initializing simulation…');
+        setProgress('Initializing simulationâ€¦');
         const backend = await createSimBackend();
-        setProgress(`Running Monte Carlo on ${backend.kind}…`);
+        setProgress(`Running Monte Carlo on ${backend.kind}â€¦`);
         const mc = await backend.run({
           mode: 'bootstrap',
           paths: 5000,
@@ -94,12 +94,12 @@ export default function BacktestLab() {
         }, (pct) => setProgress(`Monte Carlo ${pct}%`));
         setMcResult(mc);
       } else if (mode === 'single') {
-        setProgress('Running strategy + benchmark…');
+        setProgress('Running strategy + benchmarkâ€¦');
         const [sr, br] = await Promise.all([runWorker(makeCfg(selectedId, params), bars), runWorker(makeCfg('buy-and-hold', {}), bars)]);
         setResult(sr); setBahResult(br);
         setSavedReturns(new Float32Array(sr.returnsPerBar));
       } else if (mode === 'sweep') {
-        setProgress('Running param sweep…');
+        setProgress('Running param sweepâ€¦');
         const keys = Object.keys(params) as string[];
         if (keys.length === 0) { setRunning(false); return; }
         const k1 = keys[0]!; const k2 = keys[1] ?? k1;
@@ -117,7 +117,7 @@ export default function BacktestLab() {
         }
         setResult({ sweepResults: results, paramKeys: [k1, k2] });
       } else {
-        setProgress('Running walk-forward validation…');
+        setProgress('Running walk-forward validationâ€¦');
         const K = 5;
         const anchorFrac = 0.6;
         const anchor = Math.floor(n * anchorFrac);
@@ -136,7 +136,7 @@ export default function BacktestLab() {
           const isEnd = Math.min(anchor + f * step, n);
           const oosEnd = Math.min(anchor + (f + 1) * step, n);
           if (isEnd >= n || oosEnd - isEnd < 5) break;
-          setProgress(`Walk-forward fold ${f + 1}/${K}: sweeping IS…`);
+          setProgress(`Walk-forward fold ${f + 1}/${K}: sweeping ISâ€¦`);
           let bestSharpe = -Infinity;
           let bestConfig: any = null;
           for (const v1 of v1s) {
@@ -146,7 +146,7 @@ export default function BacktestLab() {
               if (r.metrics.sharpe > bestSharpe) { bestSharpe = r.metrics.sharpe; bestConfig = sp; }
             }
           }
-          setProgress(`Walk-forward fold ${f + 1}/${K}: testing OOS…`);
+          setProgress(`Walk-forward fold ${f + 1}/${K}: testing OOSâ€¦`);
           let oosSharpe = 0;
           try {
             const oosResult = await runWorker(makeCfg(selectedId, bestConfig, barsArray[isEnd].t, barsArray[oosEnd - 1].t), bars);
@@ -155,7 +155,7 @@ export default function BacktestLab() {
           folds.push({ bestParams: bestConfig, ISSharpe: bestSharpe, OOSSharpe: oosSharpe });
         }
 
-        setProgress('Optimizing on full data…');
+        setProgress('Optimizing on full dataâ€¦');
         let fullBestSharpe = -Infinity;
         for (const v1 of v1s) {
           for (const v2 of v2s) {
@@ -255,9 +255,9 @@ function SingleResultView({ result, bahResult, onAddToDashboard }: { result: Run
         <thead><tr style={{ borderBottom: '2px solid var(--border-hairline)' }}><th style={{ textAlign: 'left', padding: '6px 8px' }}>Metric</th><th style={{ textAlign: 'right', padding: '6px 8px' }}>{result.config.strategyId}</th>{bah && <th style={{ textAlign: 'right', padding: '6px 8px', color: 'var(--text-muted)' }}>Buy & Hold</th>}</tr></thead>
         <tbody>{[
           ['Total Return', m.totalReturn, bah?.totalReturn, 'pct'], ['CAGR', m.cagr, bah?.cagr, 'pct'], ['Sharpe', m.sharpe, bah?.sharpe, 'num'], ['Sortino', m.sortino, bah?.sortino, 'num'], ['Volatility', m.volatility, bah?.volatility, 'pct'], ['Max DD', m.maxDrawdown, bah?.maxDrawdown, 'pct'], ['Win Rate', m.winRate, null, 'pct'], ['Trades', m.tradeCount, null, 'int'],
-        ].map(([label, val, bahVal, fmt]) => (<tr key={label as string} style={{ borderBottom: '1px solid var(--border-hairline)' }}><td style={{ padding: '4px 8px', color: 'var(--text-secondary)' }}>{label as string}</td><td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600 }}>{fmt === 'pct' ? `${((val as number)*100).toFixed(2)}%` : fmt === 'num' ? (val as number).toFixed(2) : String(val)}</td>{bah && <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-muted)' }}>{bahVal != null ? (fmt === 'pct' ? `${((bahVal as number)*100).toFixed(2)}%` : (bahVal as number).toFixed(2)) : '—'}</td>}</tr>))}</tbody>
+        ].map(([label, val, bahVal, fmt]) => (<tr key={label as string} style={{ borderBottom: '1px solid var(--border-hairline)' }}><td style={{ padding: '4px 8px', color: 'var(--text-secondary)' }}>{label as string}</td><td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600 }}>{fmt === 'pct' ? `${((val as number)*100).toFixed(2)}%` : fmt === 'num' ? (val as number).toFixed(2) : String(val)}</td>{bah && <td style={{ padding: '4px 8px', textAlign: 'right', color: 'var(--text-muted)' }}>{bahVal != null ? (fmt === 'pct' ? `${((bahVal as number)*100).toFixed(2)}%` : (bahVal as number).toFixed(2)) : 'â€”'}</td>}</tr>))}</tbody>
       </table>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Run: {result.runId} · {result.trades.length} trades · Cost: spread {result.config.costModel.spreadBps}bps + slippage {result.config.costModel.slippageBps}bps</div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Run: {result.runId} Â· {result.trades.length} trades Â· Cost: spread {result.config.costModel.spreadBps}bps + slippage {result.config.costModel.slippageBps}bps</div>
     </div>
   );
 }
@@ -271,14 +271,14 @@ function SweepView({ sweep }: { sweep: { sweepResults: { p1: number; p2: number;
   const rng = maxSh - minSh || 1;
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Param Sweep — {paramKeys[0]} × {paramKeys[1]}</h3>
+      <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Param Sweep â€” {paramKeys[0]} Ã— {paramKeys[1]}</h3>
       <div style={{ overflow: 'auto' }}>
         <table style={{ borderCollapse: 'collapse', fontSize: 11 }}>
           <thead><tr><th style={{ padding: '4px 8px', color: 'var(--text-muted)' }}>{paramKeys[0]} \ {paramKeys[1]}</th>{p2s.map(v2 => <th key={v2} style={{ padding: '4px 6px', color: 'var(--text-muted)' }}>{v2}</th>)}</tr></thead>
-          <tbody>{p1s.map(v1 => (<tr key={v1}><td style={{ padding: '4px 8px', fontWeight: 600 }}>{v1}</td>{p2s.map(v2 => { const cell = sweepResults.find(r => r.p1 === v1 && r.p2 === v2); if (!cell) return <td key={v2} style={{ padding: '4px 6px', color: 'var(--text-muted)' }}>—</td>; const t = (cell.sharpe - minSh) / rng; return <td key={v2} style={{ padding: '4px 6px', textAlign: 'center', background: `rgb(${Math.round(t*255)},${Math.round((1-Math.abs(t-0.5)*2)*200)},${Math.round((1-t)*255)})`, color: t>0.5?'white':'black', fontWeight: 600 }}>{cell.sharpe.toFixed(2)}</td>; })})</tr>))}</tbody>
+          <tbody>{p1s.map(v1 => (<tr key={v1}><td style={{ padding: '4px 8px', fontWeight: 600 }}>{v1}</td>{p2s.map(v2 => { const cell = sweepResults.find(r => r.p1 === v1 && r.p2 === v2); if (!cell) return <td key={v2} style={{ padding: '4px 6px', color: 'var(--text-muted)' }}>â€”</td>; const t = (cell.sharpe - minSh) / rng; return <td key={v2} style={{ padding: '4px 6px', textAlign: 'center', background: `rgb(${Math.round(t*255)},${Math.round((1-Math.abs(t-0.5)*2)*200)},${Math.round((1-t)*255)})`, color: t>0.5?'white':'black', fontWeight: 600 }}>{cell.sharpe.toFixed(2)}</td>; })})</tr>))}</tbody>
         </table>
       </div>
-      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Sharpe range: {minSh.toFixed(2)} → {maxSh.toFixed(2)}</div>
+      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Sharpe range: {minSh.toFixed(2)} â†’ {maxSh.toFixed(2)}</div>
     </div>
   );
 }
@@ -291,7 +291,7 @@ function WalkForwardView({ data }: { data: any }) {
         <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0 }}>Walk-Forward Validation</h3>
         {overfit && (
           <span style={{ padding: '4px 10px', borderRadius: 'var(--radius-s)', background: 'var(--loss-soft)', color: 'var(--loss)', fontSize: 11, fontWeight: 600, textTransform: 'uppercase' }}>
-            ⚠ Likely Overfit
+            âš  Likely Overfit
           </span>
         )}
       </div>
@@ -299,7 +299,7 @@ function WalkForwardView({ data }: { data: any }) {
         <thead><tr style={{ borderBottom: '2px solid var(--border-hairline)' }}><th style={{ textAlign: 'left', padding: '6px 8px' }}>Metric</th><th style={{ textAlign: 'right', padding: '6px 8px' }}>In-Sample</th><th style={{ textAlign: 'right', padding: '6px 8px' }}>Out-of-Sample</th></tr></thead>
         <tbody>
           <tr style={{ borderBottom: '1px solid var(--border-hairline)' }}><td style={{ padding: '4px 8px', color: 'var(--text-secondary)' }}>Sharpe</td><td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600 }}>{fullISSharpe.toFixed(2)}</td><td style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600, color: overfit ? 'var(--loss)' : 'var(--accent)' }}>{stitchedOOSSharpe.toFixed(2)}</td></tr>
-          <tr style={{ borderBottom: '1px solid var(--border-hairline)' }}><td style={{ padding: '4px 8px', color: 'var(--text-secondary)' }}>OOS / IS</td><td colSpan={2} style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600 }}>{fullISSharpe !== 0 ? (stitchedOOSSharpe / fullISSharpe * 100).toFixed(1) + '%' : '—'}</td></tr>
+          <tr style={{ borderBottom: '1px solid var(--border-hairline)' }}><td style={{ padding: '4px 8px', color: 'var(--text-secondary)' }}>OOS / IS</td><td colSpan={2} style={{ padding: '4px 8px', textAlign: 'right', fontWeight: 600 }}>{fullISSharpe !== 0 ? (stitchedOOSSharpe / fullISSharpe * 100).toFixed(1) + '%' : 'â€”'}</td></tr>
         </tbody>
       </table>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -311,7 +311,7 @@ function WalkForwardView({ data }: { data: any }) {
       </div>
       <div style={{ fontSize: 11, color: 'var(--text-muted)', padding: 8, background: 'var(--bg-surface-1)', borderRadius: 'var(--radius-s)' }}>
         {overfit ? (
-          <span style={{ color: 'var(--loss)' }}>⚠ <strong>Likely overfit:</strong> Out-of-sample Sharpe ({stitchedOOSSharpe.toFixed(2)}) is less than 50% of in-sample Sharpe ({fullISSharpe.toFixed(2)}). The optimized parameters may be curve-fit to noise.</span>
+          <span style={{ color: 'var(--loss)' }}>âš  <strong>Likely overfit:</strong> Out-of-sample Sharpe ({stitchedOOSSharpe.toFixed(2)}) is less than 50% of in-sample Sharpe ({fullISSharpe.toFixed(2)}). The optimized parameters may be curve-fit to noise.</span>
         ) : (
           <span>OOS Sharpe ratio is within acceptable range of IS Sharpe. No overfit warning.</span>
         )}

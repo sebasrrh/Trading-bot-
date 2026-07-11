@@ -63,7 +63,7 @@ export default function OptimizerView() {
     setProgress('Fetching bars\u2026');
     setResult(null);
     try {
-      const barsRes = await fetch(`http://localhost:8787/api/bars?symbol=${sym}&timeframe=1D&from=0&to=${Date.now()}`);
+      const barsRes = await fetch(`/api/bars?symbol=${sym}&timeframe=1D&from=0&to=${Date.now()}`);
       const barsData = await barsRes.json();
       const barsArray = barsData.bars ?? [];
       if (barsArray.length === 0) { setProgress('No data returned.'); setRunning(false); return; }

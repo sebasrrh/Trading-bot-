@@ -34,7 +34,7 @@ export default function PaperTrading() {
     if (!autoEnabled.current) setRunning(true);
     setProgress("Fetching bars\u2026");
     try {
-      const res = await fetch(`http://localhost:8787/api/bars?symbol=${sym}&timeframe=1D&from=0&to=${Date.now()}`);
+      const res = await fetch(`/api/bars?symbol=${sym}&timeframe=1D&from=0&to=${Date.now()}`);
       const data = await res.json();
       const arr = data.bars ?? [];
       if (arr.length === 0) { setProgress("No data"); setRunning(false); fetchInProgress.current = false; return; }
