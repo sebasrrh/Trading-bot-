@@ -15,4 +15,5 @@ COPY packages/data/src ./packages/data/src
 COPY apps/api/src ./apps/api/src
 
 EXPOSE 8787
-CMD ["npx", "tsx", "apps/api/src/server.ts"]
+WORKDIR /app/apps/api
+CMD ["node", "--import", "tsx/esm", "src/server.ts"]
